@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { AuthUser } from '../types/auth'
+import api, { getApiError } from '../api/axios'
 
 function AdminLoginPage({ onSignIn }: { onSignIn: (user: AuthUser) => void }) {
     const [showPassword, setShowPassword] = useState(false)
@@ -13,20 +14,10 @@ function AdminLoginPage({ onSignIn }: { onSignIn: (user: AuthUser) => void }) {
         setMessage('')
 
         try {
-            const response = await fetch('/api/auth/login', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: form.get('email'), password: form.get('password') }),
-            })
-            const data = await response.json()
-            if (!response.ok) {
-                setMessage(data.message || 'Unable to sign in. Please try again.')
-                return
-            }
+            const { data } = await api.post('/auth/login', { email: form.get('email'), password: form.get('password') })
             onSignIn(data.user)
-        } catch {
-            setMessage('Unable to reach Fixora. Please try again shortly.')
+        } catch (error) {
+            setMessage(getApiError(error, 'Unable to reach Fixora. Please try again shortly.'))
         } finally {
             setIsSubmitting(false)
         }

@@ -61,6 +61,22 @@ async function initializeDatabase() {
       if (error.original?.code !== "ER_DUP_FIELDNAME") throw error;
     }
   }
+
+  const repairColumns = await queryInterface.describeTable("repair_jobs");
+  const addRepairColumn = async (name, definition) => {
+    if (repairColumns[name]) return;
+    try {
+      await queryInterface.addColumn("repair_jobs", name, definition);
+    } catch (error) {
+      if (error.original?.code !== "ER_DUP_FIELDNAME") throw error;
+    }
+  };
+  await addRepairColumn("asset_type", {
+    type: Sequelize.ENUM("Mobile & tablet", "Laptop & computer", "Vehicle", "Appliance & electronics", "Machinery", "Other asset"),
+    allowNull: false,
+    defaultValue: "Other asset",
+  });
+  await addRepairColumn("asset_identifier", { type: Sequelize.STRING(160), allowNull: true });
 }
 
 module.exports = { sequelize, initializeDatabase };

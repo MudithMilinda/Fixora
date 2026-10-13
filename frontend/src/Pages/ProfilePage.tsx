@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import Sidebar from '../Components/Sidebar'
 import Toast from '../Components/Toast'
 import type { AuthUser } from '../types/auth'
+import api, { getApiError } from '../api/axios'
 
-function ProfilePage({ user, onGoDashboard, onProfileUpdated, onSignOut }: { user: AuthUser, onGoDashboard: () => void, onProfileUpdated: (user: AuthUser) => void, onSignOut: () => void }) {
+function ProfilePage({ user, onGoDashboard, onOpenRepairs, onOpenHistory, onProfileUpdated, onSignOut }: { user: AuthUser, onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onProfileUpdated: (user: AuthUser) => void, onSignOut: () => void }) {
     const [avatarUrl, setAvatarUrl] = useState('')
     const [toast, setToast] = useState<{ message: string, tone: 'success' | 'error' } | null>(null)
     const [isChangingPassword, setIsChangingPassword] = useState(false)
@@ -41,21 +42,11 @@ function ProfilePage({ user, onGoDashboard, onProfileUpdated, onSignOut }: { use
         setToast(null)
 
         try {
-            const response = await fetch('/api/auth/profile', {
-                method: 'PATCH',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullName }),
-            })
-            const data = await response.json()
-            if (!response.ok) {
-                showToast(data.message || 'Unable to save your profile.', 'error')
-                return
-            }
+            const { data } = await api.patch('/auth/profile', { fullName })
             onProfileUpdated(data.user)
             showToast('Profile saved successfully.', 'success')
-        } catch {
-            showToast('Unable to reach Fixora. Please try again shortly.', 'error')
+        } catch (error) {
+            showToast(getApiError(error, 'Unable to reach Fixora. Please try again shortly.'), 'error')
         }
     }
 
@@ -75,17 +66,11 @@ function ProfilePage({ user, onGoDashboard, onProfileUpdated, onSignOut }: { use
         setIsChangingPassword(true)
         setToast(null)
         try {
-            const response = await fetch('/api/auth/change-password', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ currentPassword, newPassword }),
-            })
-            const data = await response.json()
-            showToast(data.message || (response.ok ? 'Your password has been updated.' : 'Unable to update password.'), response.ok ? 'success' : 'error')
-            if (response.ok) formElement.reset()
-        } catch {
-            showToast('Unable to reach Fixora. Please try again shortly.', 'error')
+            const { data } = await api.post('/auth/change-password', { currentPassword, newPassword })
+            showToast(data.message || 'Your password has been updated.', 'success')
+            formElement.reset()
+        } catch (error) {
+            showToast(getApiError(error, 'Unable to reach Fixora. Please try again shortly.'), 'error')
         } finally {
             setIsChangingPassword(false)
         }
@@ -94,7 +79,7 @@ function ProfilePage({ user, onGoDashboard, onProfileUpdated, onSignOut }: { use
     return (
         <div className="flex h-dvh w-screen overflow-hidden bg-[#f4f4f5] font-sans text-[#262b3a] max-[1100px]:flex-col">
             {toast && <Toast message={toast.message} tone={toast.tone} onDismiss={() => setToast(null)} />}
-            <Sidebar user={user} activePage="profile" onGoDashboard={onGoDashboard} onOpenProfile={() => undefined} onSignOut={onSignOut} />
+        <Sidebar user={user} activePage="profile" onGoDashboard={onGoDashboard} onOpenRepairs={onOpenRepairs} onOpenHistory={onOpenHistory} onOpenProfile={() => undefined} onSignOut={onSignOut} />
             <main className="min-h-full flex-1 overflow-y-auto bg-[#f5f5f7] p-[20px_20px_32px_22px] max-[1100px]:p-4">
                 <header className="mb-6 flex items-center justify-between gap-4">
                     <div>

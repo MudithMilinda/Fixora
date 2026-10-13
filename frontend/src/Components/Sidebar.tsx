@@ -1,6 +1,6 @@
 import type { AuthUser } from '../types/auth'
 
-function Sidebar({ user, activePage, onGoDashboard, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'dashboard' | 'profile', onGoDashboard: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
+function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'dashboard' | 'repairs' | 'history' | 'profile', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
     const initials = user.fullName.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
     const roleLabel = user.role === 'super_admin' ? 'Super Admin' : 'Administrator'
     return (
@@ -18,6 +18,21 @@ function Sidebar({ user, activePage, onGoDashboard, onOpenProfile, onSignOut }: 
                         <path d="M5.5 9.5v10h13v-10M9 19.5v-6h6v6" />
                     </svg>
                     Dashboard
+                </button>
+            </nav>
+
+            <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77777c]">Repair management</p>
+            <nav aria-label="Repair management">
+                <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'repairs' ? 'bg-[#29292c] text-white ring-1 ring-inset ring-white/[0.06]' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={onOpenRepairs} aria-current={activePage === 'repairs' ? 'page' : undefined}>
+                    <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M7 3.5h7l3 3V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 4 20V5a1.5 1.5 0 0 1 1.5-1.5H7Z" />
+                        <path d="M14 3.5V7h3M8 12h8M8 16h5" />
+                    </svg>
+                    Repair jobs
+                </button>
+                <button className={`mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'history' ? 'bg-[#29292c] text-white ring-1 ring-inset ring-white/[0.06]' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={onOpenHistory} aria-current={activePage === 'history' ? 'page' : undefined}>
+                    <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.1-5.6" /><path d="M3.5 4.5v4h4M12 7.5V12l3 1.8" /></svg>
+                    Repair history
                 </button>
             </nav>
 

@@ -8,7 +8,9 @@ const cookieParser = require("cookie-parser");
 const { initializeDatabase } = require("./config/database");
 const { seedInitialAdmin, seedInitialSuperAdmin } = require("./services/seedAdmin");
 const authRoutes = require("./routes/auth");
+const repairRoutes = require("./routes/repairs");
 require("./models/User");
+require("./models/RepairJob");
 
 const app = express();
 const frontendOrigins = new Set(
@@ -44,6 +46,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/repairs", repairRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 

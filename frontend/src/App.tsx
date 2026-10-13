@@ -2,22 +2,33 @@ import { useEffect, useState } from 'react'
 import AdminLoginPage from './Pages/LoginPage'
 import DashboardPage from './Pages/DashboardPage'
 import ProfilePage from './Pages/ProfilePage'
+import RepairJobsPage from './Pages/RepairJobsPage'
+import RepairHistoryPage from './Pages/RepairHistoryPage'
 import type { AuthUser } from './types/auth'
+import api from './api/axios'
+
+type AppPage = 'dashboard' | 'repairs' | 'history' | 'profile'
+
+function pageFromPath(pathname: string): AppPage {
+  if (pathname === '/repair-jobs') return 'repairs'
+  if (pathname === '/repair-history') return 'history'
+  if (pathname === '/profile') return 'profile'
+  return 'dashboard'
+}
+
+function pathForPage(page: AppPage) {
+  return page === 'repairs' ? '/repair-jobs' : page === 'history' ? '/repair-history' : page === 'profile' ? '/profile' : '/dashboard'
+}
 
 function App() {
   const [isSignedIn, setIsSignedIn] = useState(false)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'profile'>('dashboard')
+  const [currentPage, setCurrentPage] = useState<AppPage>(() => pageFromPath(window.location.pathname))
   const [user, setUser] = useState<AuthUser | null>(null)
 
   useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(async (response) => {
-        if (!response.ok) {
-          setIsSignedIn(false)
-          return
-        }
-        const data = await response.json()
+    api.get('/auth/me')
+      .then(({ data }) => {
         setUser(data.user)
         setIsSignedIn(true)
       })
@@ -25,28 +36,50 @@ function App() {
       .finally(() => setIsCheckingSession(false))
   }, [])
 
+  useEffect(() => {
+    function handleBrowserNavigation() {
+      setCurrentPage(pageFromPath(window.location.pathname))
+    }
+    window.addEventListener('popstate', handleBrowserNavigation)
+    return () => window.removeEventListener('popstate', handleBrowserNavigation)
+  }, [])
+
+  function navigate(page: AppPage) {
+    const path = pathForPage(page)
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path)
+    }
+    setCurrentPage(page)
+  }
+
   if (isCheckingSession) {
     return <main className="grid min-h-screen place-items-center bg-[#f3f3f4] text-sm font-medium text-[#55565d]">Checking your secure session…</main>
   }
 
   async function handleSignOut() {
     try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      await api.post('/auth/logout')
     } finally {
       setIsSignedIn(false)
       setUser(null)
-      setCurrentPage('dashboard')
+      navigate('dashboard')
     }
   }
 
   if (isSignedIn && user) {
     if (currentPage === 'profile') {
-      return <ProfilePage user={user} onGoDashboard={() => setCurrentPage('dashboard')} onProfileUpdated={setUser} onSignOut={handleSignOut} />
+      return <ProfilePage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onProfileUpdated={setUser} onSignOut={handleSignOut} />
     }
-    return <DashboardPage user={user} onGoDashboard={() => setCurrentPage('dashboard')} onOpenProfile={() => setCurrentPage('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'repairs') {
+      return <RepairJobsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    }
+    if (currentPage === 'history') {
+      return <RepairHistoryPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    }
+    return <DashboardPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
   }
 
-  return <AdminLoginPage onSignIn={(signedInUser) => { setUser(signedInUser); setIsSignedIn(true) }} />
+  return <AdminLoginPage onSignIn={(signedInUser) => { setUser(signedInUser); setIsSignedIn(true); navigate('dashboard') }} />
 }
 
 export default App
