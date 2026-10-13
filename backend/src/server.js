@@ -4,6 +4,8 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const { initializeDatabase } = require("./config/database");
+require("./models/User");
 
 const app = express();
 const frontendOrigins = new Set(
@@ -32,14 +34,28 @@ app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
     message: "Fixora API is running",
+    database: "connected",
   });
 });
 
 const port = Number(process.env.PORT) || 4000;
 
-if (require.main === module) {
-  app.listen(port, () => {
+async function startServer() {
+  await initializeDatabase();
+  console.log("MySQL connection established and models synchronized.");
+
+  return app.listen(port, () => {
     console.log(`Fixora API listening on http://localhost:${port}`);
+  });
+}
+
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error(
+      "Backend startup failed. Check the MySQL service and DB_* values in .env.",
+    );
+    console.error(error.message);
+    process.exit(1);
   });
 }
 
