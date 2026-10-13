@@ -206,3 +206,39 @@ F. Sprint backlog with user stories and acceptance tests.
 G. Deployment, security and operational runbooks.
 
 END OF BLUEPRINT
+
+
+FIXORA
+│
+├── Dashboard
+│
+├── REPAIR MANAGEMENT
+│   ├── Repair Jobs
+│   ├── Create Repair
+│   └── Repair History
+│
+├── INVENTORY
+│   ├── Stock Overview
+│   ├── Stock Requests
+│   ├── Stock Movements
+│   └── Stock Alerts
+│
+├── PROCUREMENT
+│   ├── Purchase Requests
+│   ├── Purchase Orders
+│   └── Suppliers
+│
+├── SALES & BILLING
+│   ├── Quotations
+│   ├── Invoices
+│   └── Payments
+│
+├── MANAGEMENT
+│   ├── Customers
+│   ├── Technicians
+│   └── Reports
+│
+└── SETTINGS
+    ├── Company Settings
+    ├── Users & Roles
+    └── Permissions
