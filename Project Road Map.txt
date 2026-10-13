@@ -1,0 +1,208 @@
+UNIVERSAL REPAIR, INVENTORY & BUSINESS MANAGEMENT PLATFORM
+COMPLETE PRODUCT AND TECHNICAL BLUEPRINT | Version 1.0 | 13 October 2026
+
+PURPOSE
+Build a configurable, web-based multi-tenant SaaS platform for mobile, laptop, electronics, motor vehicle, machinery, appliance and other repair shops. Each company can manage repair jobs, its entire inventory (not just repair parts), purchases, suppliers, quotations, customers, invoices, payments, staff, permissions, branches, and reporting in one application.
+
+1. PRODUCT PRINCIPLES
+- One common workflow, configurable terminology, service types and fields per industry.
+- Tenant/company data isolation from day one; support one or many branches per company.
+- Every stock change is traceable, authorized, atomic and reversible by compensating entries.
+- Keep customer repair estimates distinct from supplier quotations and purchase orders.
+- Do not silently deduct stock when a technician merely requests or reserves an item.
+- Accessible responsive interface for front desk, technicians, storekeepers and managers.
+- Modular monolith first; extract services only if justified by scale.
+
+2. BUSINESS TYPES AND CONFIGURATION
+Mobile: IMEI, make/model, lock/condition, accessories, data/privacy consent.
+Vehicles: plate/VIN, mileage, make/model, fuel level, service checklist.
+Laptop/computer: serial, specs, included charger, fault tests.
+Appliances/electronics: model, serial, warranty, voltage, accessories.
+Machinery: asset ID, hour meter, service location, preventive maintenance.
+Generic: configurable asset fields, intake forms, checklists, issue categories, units, job stages, numbering and printable templates.
+Company setup wizard: business name, locale, currency, tax, branches, warehouses, service types, categories, permissions, notification channels, branding.
+
+3. ROLES AND ACCESS CONTROL
+Platform Super Admin: SaaS billing, tenants, support with explicit audited access.
+Company Owner/Admin: all company modules and settings.
+Branch Manager: branch-scoped approvals, reports and staff.
+Service Advisor: customer intake, estimates, status updates.
+Technician: assigned jobs, diagnostics, time logs, parts requests and allowed stock visibility.
+Inventory Manager: products, counts, transfers, receiving and adjustments.
+Purchasing Officer: supplier RFQs, quote comparisons and purchase orders.
+Cashier/Accountant: invoices, payments, refunds and financial reports.
+Customer: restricted portal for own jobs, approvals, invoices and updates.
+Use custom roles with granular permissions: repair.create, repair.view_all, repair.view_assigned, repair.assign, repair.complete, inventory.view, inventory.adjust, inventory.transfer, inventory.reserve, purchase.request, purchase.approve, purchase.order, invoice.create, invoice.refund, report.finance, user.manage, role.manage, etc.
+Enforce permissions and tenant/branch scope on every backend operation; log sensitive actions; apply separation of duties for high-value purchases.
+
+4. REPAIR JOB LIFECYCLE
+Draft -> Received -> Diagnosis -> Awaiting Estimate Approval -> Approved -> In Progress -> Waiting for Parts / On Hold -> Quality Check -> Ready for Collection -> Delivered -> Closed.
+Additional terminal states: Cancelled, Unrepairable, Returned; configurable transitions with reason and audit trail.
+Intake: customer, asset, symptoms, accessories, photos, condition, intake checklist, promised date, deposit, signature/consent, assigned branch.
+Diagnosis: notes, technician, fault codes, labor estimate, required parts, estimated completion date and confidence; update forecast when parts ETA changes.
+Estimate: itemized parts, labor, outsourced services, fees, discount, tax, validity, customer approval/rejection and revision history.
+Execution: work logs, checklists, technician assignment/reassignment, part reservation, issue/return, external service, attachments, internal comments, customer-visible updates.
+Closure: QC checklist, actual cost, final invoice, payment, warranty, handover signature, customer feedback.
+Jobs support multiple technicians and tasks, multiple assets where required, and links to historical service records.
+
+5. FULL INVENTORY MANAGEMENT
+Inventory covers spare parts, retail goods, consumables, tools, accessories and non-stock services.
+Catalog: item ID/SKU/barcode, name, description, category, brand, model compatibility, variants, images, unit of measure, supplier SKUs, cost method, purchase/sale price, tax class, min/max levels, reorder point, lead time, active status.
+Locations: company -> branch -> warehouse -> bin; configurable stock ownership and transfers.
+Quantities: on_hand, reserved, available = on_hand - reserved, incoming_on_order; optional damaged/quarantine buckets.
+Transactions: opening balance, purchase receipt, job issue, job return, retail sale, customer return, adjustment, count variance, transfer out/in, supplier return, write-off.
+Stock ledger immutable; transaction id, tenant, location, item, quantity, unit cost, source document, user, timestamp and reason. Corrections use reversing movements.
+Reservations: allocate parts to approved jobs; reserve only available stock; issue at actual consumption; release on cancellation or changed requirement. Never double-count a reservation as consumption.
+Serial/batch/lot tracking for eligible items; warranty and expiry tracking where relevant.
+Stocktaking: cycle counts, blind counts, reconciliation approvals, variance report.
+Transfers: requested -> approved -> dispatched -> in transit -> received; handle loss/damage.
+Supplier receipts: partial deliveries, over/under receipt controls, landed costs and price variance.
+Support unit conversions (box to piece, liter to ml) with validated conversion factors.
+Valuation: choose weighted-average cost for MVP, consistently applied; add FIFO later if required. Inventory and gross profit reports use cost at issue time.
+Low-stock notifications configurable by location; prevent repeated alert spam.
+
+6. PART REQUESTS, PROCUREMENT AND QUOTATIONS
+Technician selects item or submits unlisted part with photos/specifications, job ID, needed quantity, urgency and desired-by date.
+System shows available stock, reservations, on-order quantities, pending demand, alternatives and compatible parts.
+If available: reserve/issue through approval rules. If unavailable: create purchase request linked to job.
+Admin purchasing queue groups duplicate requests by item and branch; never erase source request links.
+Suggested order quantity = max(0, forecast demand over replenishment horizon + safety stock + approved backlog - available stock - reliable inbound stock), adjusted for minimum order quantity, pack size, budget and supplier lead time.
+For intermittent demand or little history, show a rules-based recommendation with low confidence; permit manual override with reason. Avoid implying forecast certainty.
+Supplier RFQ: send inquiry to one/multiple suppliers; capture prices, taxes, freight, availability, warranty, lead time, expiry and attachments.
+Quote comparison: landed unit cost, supplier reliability, delivery date and terms.
+Purchase approval: thresholds, multi-level approvals, rejected/revised requests and audit history.
+PO: draft -> approved -> sent -> partially received -> received -> closed/cancelled.
+Goods receipt updates stock and purchase costs only after validated receipt; partial receipts supported.
+Purchase invoice and supplier payment tracking, credit notes and returns.
+Customer-facing repair quotation is separate from supplier RFQ/quotation; both can be PDF exported.
+
+7. BILLING, PAYMENTS AND SALES
+Invoice from approved/actual repair parts and labor, or standalone retail sale/POS.
+Invoice lines: type, description, quantity, unit price, discount, tax, cost reference, warranty; snapshot prices at issue time.
+Support deposits, partial payments, split tender (cash/card/bank), due amounts, credit notes, refunds, receipts and payment reconciliation.
+Draft -> issued -> partially paid -> paid / overdue / void, with auditable transitions.
+Never modify issued invoice financial totals silently; use credit notes/revisions as policy permits.
+Daily cashier close, branch revenue, tax summaries, cost of goods sold, gross margin.
+Tax rules configurable by jurisdiction and reviewed with an accountant before production.
+
+8. NOTIFICATIONS AND CUSTOMER EXPERIENCE
+In-app notification center, email, optional SMS/WhatsApp integration, push where supported.
+Triggers: new assignment, part request, approval, low stock, delayed PO, upcoming promised date, overdue job, estimate approval, ready for pickup, overdue invoice, warranty claim.
+Templates, per-role preferences, rate limits, delivery attempts and retries; customer opt-in/consent.
+Customer portal via authenticated account or expiring secure tracking link: job status, estimate approval, expected date, invoice, payment status and warranty. Never expose private technician notes or another customer's jobs.
+QR/barcode labels on intake receipt, job and inventory bin; scanning must respect permissions.
+
+9. DASHBOARDS AND REPORTS
+Owner: open jobs, overdue jobs, revenue, margin, stock valuation, purchases, branch comparison.
+Service: queue by stage, technician utilization, average turnaround, first-time fix rate, repeat repair rate, customer satisfaction.
+Inventory: available/reserved/on-order, low/out-of-stock, consumption, turnover, dead stock, valuation, shrinkage, reorder suggestions, supplier lead-time reliability.
+Procurement: requests by status, quotation comparison, PO aging, savings, partial receipts, budget use.
+Finance: sales, payments, receivables, gross margin, refunds, taxes, expense categories.
+Filters: date range, branch, category, technician, supplier, item, customer; CSV/Excel/PDF exports with permission checks.
+
+10. RECOMMENDED ARCHITECTURE
+Frontend: Next.js App Router + TypeScript + Tailwind CSS + shadcn/ui; responsive PWA optional.
+Backend: NestJS (or well-structured Express) + TypeScript, REST API with OpenAPI docs.
+Database: PostgreSQL + Prisma; strong transactions and constraints.
+Queue/cache: Redis + BullMQ for notifications, scheduled alerts, reports.
+Storage: S3-compatible private object storage with signed URLs.
+Realtime: WebSockets/SSE for job updates and notifications.
+Authentication: secure sessions or JWT with rotation, MFA for privileged users; tenant membership and branch-scoped authorization.
+Observability: structured logs, metrics, error tracking, health checks and audit logs.
+Deployment: frontend on Vercel, API/worker on managed compute, managed PostgreSQL, managed Redis and object storage; separate dev/staging/prod.
+Architecture style: modular monolith modules auth, tenancy, customers, assets, repairs, inventory, purchasing, billing, notifications, reporting, configuration, subscriptions.
+
+11. CORE DATA MODEL (TABLE BLUEPRINT)
+Platform: tenants, subscriptions, plans, plan_features, tenant_settings, branches, warehouses, bins.
+Identity: users, tenant_memberships, roles, permissions, role_permissions, user_role_assignments, sessions, audit_logs.
+CRM: customers, customer_contacts, suppliers, supplier_contacts.
+Catalog: item_categories, items, item_variants, item_compatibilities, units, unit_conversions, item_suppliers, price_lists, item_prices, serial_numbers, lots.
+Inventory: stock_balances, stock_movements, stock_reservations, stock_counts, stock_count_lines, stock_transfers, stock_transfer_lines, stock_alert_rules.
+Repair: asset_types, asset_field_definitions, customer_assets, repair_jobs, repair_job_assets, repair_status_history, repair_tasks, technician_assignments, repair_diagnostics, repair_part_requirements, repair_part_issues, repair_time_logs, repair_attachments, repair_checklists, repair_warranties.
+Procurement: purchase_requests, purchase_request_lines, rfqs, rfq_lines, supplier_quotes, supplier_quote_lines, purchase_orders, purchase_order_lines, goods_receipts, goods_receipt_lines, supplier_invoices, supplier_payments, supplier_returns.
+Sales/finance: customer_estimates, estimate_lines, estimate_approvals, invoices, invoice_lines, payments, payment_allocations, credit_notes, retail_sales, retail_sale_lines.
+Communication: notifications, notification_templates, notification_deliveries, customer_portal_tokens.
+Analytics: reporting_views, forecast_snapshots (optional, derived).
+
+All tenant-owned rows include tenant_id. Branch-owned records include branch_id. Use UUID PKs, FK constraints, unique indexes scoped by tenant, created_at/updated_at and optional soft deletion for master data. Use JSONB only for flexible custom fields, not financial totals or ledger records. Include actor and source IDs for traceability.
+
+12. CRITICAL TRANSACTION RULES
+- Every mutation checks tenant membership and granular permissions server-side.
+- Inventory issue transaction: lock stock balance row, verify available stock, convert reservation to issued quantity, insert ledger movement, update balance, commit atomically.
+- Receipt transaction: validate PO remaining quantity, insert receipt and ledger entries, update on-hand and outstanding quantity in one transaction.
+- Transfer transaction: debit origin at dispatch; receive destination only at actual receipt; represent in-transit separately.
+- Idempotency keys prevent duplicate payment, receipt, stock issue and notification events.
+- No negative stock by default; authorized exceptions only if explicitly configured and audited.
+- Concurrent technicians cannot both reserve the last unit.
+- Financial documents preserve immutable price/tax snapshots.
+- Never hard-delete ledger, invoices or audit events; enforce retention rules.
+- Use outbox pattern for reliable post-commit notifications and external integrations.
+
+13. EXAMPLE REST API GROUPS
+/auth/login, /auth/refresh, /me, /tenants, /branches, /roles, /permissions
+/customers, /assets, /repairs, /repairs/:id/tasks, /repairs/:id/diagnostics, /repairs/:id/parts, /repairs/:id/estimates, /repairs/:id/status
+/items, /warehouses, /inventory/balances, /inventory/movements, /inventory/reservations, /inventory/counts, /inventory/transfers
+/purchase-requests, /rfqs, /supplier-quotes, /purchase-orders, /goods-receipts, /suppliers
+/invoices, /payments, /credit-notes, /sales, /notifications, /reports, /settings
+Use pagination, filtering, sort allowlists, schema validation, API versioning and consistent error responses.
+
+14. MAIN UI PAGES
+Platform: SaaS admin, tenant onboarding, subscription/billing.
+Company: overview dashboard, repair board/list/calendar, create repair wizard, repair detail, technician workbench, customers, assets, catalog, inventory overview, stock ledger, stock counts, transfers, purchase requests, RFQs, supplier quotes, purchase orders, goods receipts, suppliers, estimates, invoices, payments, retail POS, reports, notifications, users, roles, company/branch settings.
+Customer: track repair, approve estimate, invoices/receipts, warranty status.
+Design: searchable tables, saved filters, bulk actions, mobile technician screens, accessible statuses and clear approval history.
+
+15. DELIVERY PHASES AND ACCEPTANCE CRITERIA
+Phase 0 - Discovery: map 3+ business types; define user journeys, fields, tax and stock rules; clickable prototype.
+Phase 1 - Foundation: tenants, branches, login, RBAC, audit, settings. Acceptance: cross-tenant requests denied, role checks enforced.
+Phase 2 - Repairs: customer/asset intake, jobs, diagnosis, assignments, estimates, workflow. Acceptance: full repair tracked from receipt to delivery.
+Phase 3 - Inventory: catalog, locations, balances, ledger, reservation, issue/return, counts, alerts. Acceptance: concurrent reservations safe; totals reconcile to ledger.
+Phase 4 - Procurement: requests, approval, RFQ, quote comparison, PO, partial receipt. Acceptance: receipt increases stock exactly once; job requests remain traceable.
+Phase 5 - Billing: invoices, payments, credits, PDF and financial reports. Acceptance: job cost, invoice and payment totals reconcile.
+Phase 6 - Customer experience: notifications, portal, QR, warranties, supplier/customer messaging. Acceptance: permissions and consent validated.
+Phase 7 - SaaS scale: subscriptions, limits, onboarding, advanced reports, forecasting and multi-branch optimization. Acceptance: tenant isolation, billing and usage limits verified.
+Prioritize Phases 1-5 for commercial MVP; later phases optional.
+
+16. TESTING PLAN
+Unit: price/tax calculations, units, stock formulas, reorder logic, permissions, status transitions.
+Integration: reserve/issue/return, PO/partial receipt, estimate-to-invoice, refund/credit, alerts and outbox.
+Concurrency: simultaneous reservations and receipts; retry/idempotency.
+Security: tenant isolation, IDOR, branch scope, CSRF/session, injection, file upload, rate limiting, audit integrity.
+E2E: mobile repair, garage repair, appliance repair, out-of-stock procurement, multi-branch transfer, customer approval.
+UAT: front desk, technician, storekeeper, manager, cashier; include poor-network and mobile workflows.
+Nonfunctional: backup/restore drill, load test, accessibility, data export, disaster recovery, monitoring.
+
+17. SECURITY, PRIVACY AND OPERATIONS
+HTTPS, secure cookies, password hashing, MFA, encryption at rest where available, least privilege, secrets management, private uploads, malware scanning, signed downloads, backups and tested restores.
+Collect only necessary customer/device information; do not store customer device passwords in plaintext. Use explicit consent and retention rules for photos, identifiers and customer communications.
+Tenant-aware database access; consider PostgreSQL row-level security as defense in depth, not a replacement for API authorization.
+Daily backups with defined RPO/RTO, migration rollback plan, incident response, privacy policy and terms.
+
+18. BUSINESS MODEL
+Starter: one branch, core repairs, stock, estimates and invoices.
+Professional: purchasing, advanced reports, notifications, more users.
+Enterprise: multiple branches, custom approval chains, API/integrations and advanced analytics.
+Plans, pricing and feature limits should be validated with actual repair businesses before launch.
+
+19. EXAMPLE END-TO-END SCENARIO
+1. Customer brings iPhone with damaged display; advisor creates job and captures condition.
+2. Technician diagnoses display and adhesive requirement; system checks stock at branch.
+3. Adhesive is available and reserved; display unavailable; technician submits part request.
+4. Manager sees all outstanding display requests, consumption history, on-order and reorder recommendation.
+5. Purchasing collects supplier quotations, compares landed cost/ETA, obtains approval and issues PO.
+6. Storekeeper partially or fully receives goods; inventory ledger updates; requester notified.
+7. Display is reserved to the job, then issued when technician actually installs it.
+8. Technician logs labor, performs QC and marks ready; customer receives notification.
+9. Invoice includes actual parts, labor, tax/discount; customer pays and receives receipt.
+10. Job closes with warranty; all stock, purchase, cost and financial reports reflect the transaction.
+
+20. NEXT DESIGN ARTIFACTS
+A. Detailed ERD with keys, relations, indexes and constraints.
+B. Full screen sitemap, user journeys and wireframes.
+C. RBAC permission matrix and approval thresholds.
+D. API contracts/OpenAPI schemas.
+E. Inventory ledger and costing technical specification.
+F. Sprint backlog with user stories and acceptance tests.
+G. Deployment, security and operational runbooks.
+
+END OF BLUEPRINT
