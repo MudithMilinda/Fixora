@@ -4,7 +4,10 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const cookieParser = require("cookie-parser");
 const { initializeDatabase } = require("./config/database");
+const { seedInitialAdmin, seedInitialSuperAdmin } = require("./services/seedAdmin");
+const authRoutes = require("./routes/auth");
 require("./models/User");
 
 const app = express();
@@ -24,10 +27,12 @@ app.use(
     origin: (origin, callback) => {
       callback(null, !origin || frontendOrigins.has(origin));
     },
+    credentials: true,
   }),
 );
 
 app.use(express.json());
+app.use(cookieParser());
 app.use(morgan("dev"));
 
 app.get("/api/health", (req, res) => {
@@ -38,10 +43,14 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.use("/api/auth", authRoutes);
+
 const port = Number(process.env.PORT) || 4000;
 
 async function startServer() {
   await initializeDatabase();
+  await seedInitialAdmin();
+  await seedInitialSuperAdmin();
   console.log("MySQL connection established and models synchronized.");
 
   return app.listen(port, () => {

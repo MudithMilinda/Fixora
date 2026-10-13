@@ -36,6 +36,31 @@ async function initializeDatabase() {
 
   await sequelize.authenticate();
   await sequelize.sync();
+
+  // Keep the authentication session version available for databases created
+  // before this field was introduced, without using destructive schema sync.
+  const queryInterface = sequelize.getQueryInterface();
+  const userColumns = await queryInterface.describeTable("users");
+  if (!userColumns.session_version) {
+    await queryInterface.addColumn("users", "session_version", {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+    });
+  }
+  if (!userColumns.role) {
+    try {
+      await queryInterface.addColumn("users", "role", {
+        type: Sequelize.ENUM("admin", "super_admin"),
+        allowNull: false,
+        defaultValue: "admin",
+      });
+    } catch (error) {
+      // sequelize.sync can create this new model field before the explicit
+      // compatibility migration runs. A duplicate then means it is ready.
+      if (error.original?.code !== "ER_DUP_FIELDNAME") throw error;
+    }
+  }
 }
 
 module.exports = { sequelize, initializeDatabase };

@@ -1,12 +1,35 @@
 import { useState, type FormEvent } from 'react'
+import type { AuthUser } from '../types/auth'
 
-function AdminLoginPage({ onSignIn }: { onSignIn: () => void }) {
+function AdminLoginPage({ onSignIn }: { onSignIn: (user: AuthUser) => void }) {
     const [showPassword, setShowPassword] = useState(false)
     const [message, setMessage] = useState('')
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
-    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
-        onSignIn()
+        const form = new FormData(event.currentTarget)
+        setIsSubmitting(true)
+        setMessage('')
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: form.get('email'), password: form.get('password') }),
+            })
+            const data = await response.json()
+            if (!response.ok) {
+                setMessage(data.message || 'Unable to sign in. Please try again.')
+                return
+            }
+            onSignIn(data.user)
+        } catch {
+            setMessage('Unable to reach Fixora. Please try again shortly.')
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
@@ -77,8 +100,8 @@ function AdminLoginPage({ onSignIn }: { onSignIn: () => void }) {
                                 <button className="font-medium text-[#55565d] hover:text-[#171719]" type="button" onClick={() => setMessage('Contact your system administrator to reset your password.')}>Forgot password?</button>
                             </div>
 
-                            <button className="h-11 w-full rounded-[10px] bg-[#171719] text-[12px] font-semibold text-white transition hover:bg-[#303034] focus:outline-none focus:ring-2 focus:ring-[#171719] focus:ring-offset-2" type="submit">
-                                Sign in
+                            <button className="h-11 w-full rounded-[10px] bg-[#171719] text-[12px] font-semibold text-white transition hover:bg-[#303034] focus:outline-none focus:ring-2 focus:ring-[#171719] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? 'Signing in…' : 'Sign in'}
                             </button>
                             <p className="min-h-4 text-[11px] text-[#777982]" role="status" aria-live="polite">{message}</p>
                         </form>

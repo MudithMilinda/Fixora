@@ -25,11 +25,22 @@ const User = sequelize.define(
       allowNull: false,
       field: "password_hash",
     },
+    role: {
+      type: DataTypes.ENUM("admin", "super_admin"),
+      allowNull: false,
+      defaultValue: "admin",
+    },
     isActive: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true,
       field: "is_active",
+    },
+    sessionVersion: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 0,
+      field: "session_version",
     },
   },
   {
