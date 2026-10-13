@@ -1,6 +1,6 @@
 import type { AuthUser } from '../types/auth'
 
-function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'dashboard' | 'repairs' | 'history' | 'profile', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
+function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenInventory = () => { window.location.href = '/inventory' }, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'profile', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenInventory?: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
     const initials = user.fullName.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
     const roleLabel = user.role === 'super_admin' ? 'Super Admin' : 'Administrator'
     return (
@@ -34,6 +34,11 @@ function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory
                     <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.1-5.6" /><path d="M3.5 4.5v4h4M12 7.5V12l3 1.8" /></svg>
                     Repair history
                 </button>
+            </nav>
+            <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77777c]">Inventory</p>
+            <nav aria-label="Inventory">
+                <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'items' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/items' }}>□ Items</button>
+                <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'inventory' ? 'bg-[#29292c] text-white ring-1 ring-inset ring-white/[0.06]' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={onOpenInventory} aria-current={activePage === 'inventory' ? 'page' : undefined}>▦ Stock store</button>
             </nav>
 
             <div className="mt-auto flex items-center gap-1 border-t border-white/[0.08] pt-4">

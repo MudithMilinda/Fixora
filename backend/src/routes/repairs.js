@@ -1,6 +1,7 @@
 const express = require("express");
 const { Op } = require("sequelize");
 const { RepairJob, REPAIR_STATUSES, ASSET_TYPES } = require("../models/RepairJob");
+const Stock = require("../models/Stock");
 const { requireAuth } = require("../middleware/requireAuth");
 
 const router = express.Router();
@@ -20,6 +21,7 @@ function serialize(job) {
     technician: job.technician || "Unassigned",
     promisedDate: job.promisedDate,
     priority: job.priority,
+    parts: Array.isArray(job.parts) ? job.parts : [],
     createdAt: job.createdAt,
   };
 }
@@ -57,6 +59,7 @@ router.post("/", async (req, res, next) => {
     const technician = typeof req.body.technician === "string" ? req.body.technician.trim() : "";
     const priority = ["Normal", "High", "Urgent"].includes(req.body.priority) ? req.body.priority : "Normal";
     const promisedDate = req.body.promisedDate ? new Date(req.body.promisedDate) : null;
+    const requestedParts = Array.isArray(req.body.parts) ? req.body.parts : [];
 
     if (!customerName || !assetName || !issue || customerName.length > 120 || assetName.length > 160 || issue.length > 5000) {
       return res.status(400).json({ success: false, message: "Customer, asset, and repair issue are required." });
@@ -65,6 +68,14 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Enter a valid promised date." });
     }
 
+    const parts = [];
+    for (const requestedPart of requestedParts) {
+      const quantity = Number(requestedPart.quantity);
+      const stock = await Stock.findByPk(requestedPart.stockId);
+      if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." });
+      await stock.update({ quantity: stock.quantity - quantity });
+      parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), total: Number(stock.sellingPrice) * quantity });
+    }
     const jobNumber = `REP-${Date.now().toString().slice(-8)}`;
     const job = await RepairJob.create({
       jobNumber,
@@ -77,6 +88,7 @@ router.post("/", async (req, res, next) => {
       technician: technician || null,
       promisedDate,
       priority,
+      parts,
       createdBy: req.user.id,
     });
     return res.status(201).json({ success: true, message: "Repair job created.", job: serialize(job) });
@@ -105,6 +117,16 @@ router.get("/history", async (req, res, next) => {
   }
 });
 
+router.get("/:id", async (req, res, next) => {
+  try {
+    const job = await RepairJob.findByPk(req.params.id);
+    if (!job) return res.status(404).json({ success: false, message: "Repair job not found." });
+    return res.status(200).json({ success: true, job: serialize(job) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.patch("/:id", async (req, res, next) => {
   try {
     const job = await RepairJob.findByPk(req.params.id);
@@ -117,12 +139,15 @@ router.patch("/:id", async (req, res, next) => {
     const priority = ["Normal", "High", "Urgent"].includes(req.body.priority) ? req.body.priority : job.priority;
     const status = REPAIR_STATUSES.includes(req.body.status) ? req.body.status : job.status;
     const promisedDate = req.body.promisedDate ? new Date(req.body.promisedDate) : null;
+    const requestedParts = Array.isArray(req.body.parts) ? req.body.parts : [];
     if (!customerName || !assetName || !issue || customerName.length > 120 || assetName.length > 160 || issue.length > 5000) {
       return res.status(400).json({ success: false, message: "Customer, asset, and repair issue are required." });
     }
     if (promisedDate && Number.isNaN(promisedDate.getTime())) return res.status(400).json({ success: false, message: "Enter a valid promised date." });
 
-    await job.update({ customerName, assetName, issue, assetType, priority, status, promisedDate, customerPhone: typeof req.body.customerPhone === "string" ? req.body.customerPhone.trim() || null : job.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === "string" ? req.body.assetIdentifier.trim() || null : job.assetIdentifier, technician: typeof req.body.technician === "string" ? req.body.technician.trim() || null : job.technician });
+    const parts = Array.isArray(job.parts) ? [...job.parts] : [];
+    for (const requestedPart of requestedParts) { const quantity = Number(requestedPart.quantity); const stock = await Stock.findByPk(requestedPart.stockId); if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." }); await stock.update({ quantity: stock.quantity - quantity }); parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), total: Number(stock.sellingPrice) * quantity }); }
+    await job.update({ customerName, assetName, issue, assetType, priority, status, promisedDate, parts, customerPhone: typeof req.body.customerPhone === "string" ? req.body.customerPhone.trim() || null : job.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === "string" ? req.body.assetIdentifier.trim() || null : job.assetIdentifier, technician: typeof req.body.technician === "string" ? req.body.technician.trim() || null : job.technician });
     return res.status(200).json({ success: true, message: "Repair job updated.", job: serialize(job) });
   } catch (error) { return next(error); }
 });

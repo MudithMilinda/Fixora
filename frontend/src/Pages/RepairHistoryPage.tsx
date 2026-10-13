@@ -28,6 +28,9 @@ function RepairHistoryPage({
   const [jobs, setJobs] = useState<RepairJob[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [viewJob, setViewJob] = useState<RepairJob | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; tone: "error" } | null>(
     null,
@@ -65,6 +68,11 @@ function RepairHistoryPage({
           new Date(value),
         )
       : "Not set";
+  const filteredJobs = jobs.filter((job) => {
+    const date = job.promisedDate ? job.promisedDate.slice(0, 10) : "";
+    return (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
+  });
+  const partsTotal = (job: RepairJob) => (job.parts || []).reduce((total, part) => total + part.total, 0);
 
   return (
     <div className="flex h-dvh w-screen overflow-hidden bg-[#f4f4f5] font-sans text-[#262b3a] max-[1100px]:flex-col">
@@ -140,6 +148,8 @@ function RepairHistoryPage({
                 ))}
               </select>
             </div>
+            <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} aria-label="From date" />
+            <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} aria-label="To date" />
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[760px] border-separate border-spacing-0 text-left">
@@ -150,21 +160,23 @@ function RepairHistoryPage({
                   <th className="px-2 py-3">Final status</th>
                   <th className="px-2 py-3">Technician</th>
                   <th className="px-2 py-3">Promised date</th>
+                  <th className="px-2 py-3">Parts cost</th>
+                  <th className="px-2 py-3 text-right">Receipt</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={7}
                       className="px-2 py-10 text-center text-sm text-[#7b8190]"
                     >
                       Loading repair history…
                     </td>
                   </tr>
-                ) : jobs.length === 0 ? (
+                ) : filteredJobs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-2 py-12 text-center">
+                    <td colSpan={7} className="px-2 py-12 text-center">
                       <p className="font-semibold text-[#444a56]">
                         No repair history found
                       </p>
@@ -174,7 +186,7 @@ function RepairHistoryPage({
                     </td>
                   </tr>
                 ) : (
-                  jobs.map((job) => (
+                  filteredJobs.map((job) => (
                     <tr
                       key={job.id}
                       className="border-t border-[#f0f1f4] text-sm"
@@ -208,6 +220,8 @@ function RepairHistoryPage({
                       <td className="px-2 py-4 text-xs font-semibold text-[#5a6170]">
                         {formatDate(job.promisedDate)}
                       </td>
+                      <td className="px-2 py-4 text-xs font-semibold text-[#5a6170]">Rs. {partsTotal(job).toFixed(2)}</td>
+                      <td className="px-2 py-4 text-right"><button className="rounded-lg border border-[#dfe1e6] px-3 py-1.5 text-xs font-semibold text-[#555b68] hover:bg-[#f4f4f5]" type="button" onClick={() => setViewJob(job)}>View receipt</button></td>
                     </tr>
                   ))
                 )}
@@ -215,12 +229,19 @@ function RepairHistoryPage({
             </table>
           </div>
           <p className="mt-4 border-t border-[#f0f1f4] pt-4 text-xs text-[#7b8190]">
-            {jobs.length} repair job{jobs.length === 1 ? "" : "s"} shown
+            {filteredJobs.length} repair job{filteredJobs.length === 1 ? "" : "s"} shown
           </p>
         </section>
       </main>
+      {viewJob && <ReceiptModal job={viewJob} onClose={() => setViewJob(null)} />}
     </div>
   );
+}
+
+function ReceiptModal({ job, onClose }: { job: RepairJob; onClose: () => void }) {
+  const parts = job.parts || [];
+  const total = parts.reduce((sum, part) => sum + part.total, 0);
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101012]/45 p-4"><section className="w-full max-w-lg rounded-[22px] border border-[#e7e7e9] bg-[#fbfbfc] p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#777e8e]">Repair receipt</p><h2 className="mt-2 text-xl font-bold text-[#252932]">{job.jobNumber}</h2><p className="mt-1 text-sm text-[#747a89]">{job.customerName} · {job.assetName}</p></div><button className="grid h-8 w-8 place-items-center rounded-lg text-[#767c89] hover:bg-[#eeeeef]" type="button" onClick={onClose}>×</button></div><div className="mt-6 rounded-xl border border-[#e7e7e9] bg-white p-4"><p className="text-xs font-semibold text-[#555b68]">Assigned parts</p>{parts.length ? <div className="mt-3 divide-y divide-[#f0f1f4]">{parts.map(part => <div className="flex justify-between py-2 text-sm" key={part.stockId}><span>{part.name} × {part.quantity}</span><span className="font-semibold">Rs. {part.total.toFixed(2)}</span></div>)}</div> : <p className="mt-3 text-sm text-[#7a8090]">No parts assigned.</p>}<div className="mt-3 flex justify-between border-t border-[#eceef1] pt-3 text-sm font-bold"><span>Parts total</span><span>Rs. {total.toFixed(2)}</span></div></div><div className="mt-6 flex justify-end gap-3"><button className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[#555b68] hover:bg-[#f0f0f2]" type="button" onClick={onClose}>Close</button><button className="rounded-xl bg-[#171719] px-4 py-2.5 text-xs font-semibold text-white" type="button" onClick={() => window.print()}>Print receipt</button></div></section></div>;
 }
 
 export default RepairHistoryPage;

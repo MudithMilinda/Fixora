@@ -1,0 +1,3 @@
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
+module.exports = sequelize.define('Item', { id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true }, name: { type: DataTypes.STRING(160), allowNull: false }, sku: { type: DataTypes.STRING(64), allowNull: true }, source: { type: DataTypes.ENUM('catalog', 'stock'), allowNull: false, defaultValue: 'catalog' }, quantity: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 }, costPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0, field: 'cost_price' }, sellingPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0, field: 'selling_price' } }, { tableName: 'items', underscored: true });

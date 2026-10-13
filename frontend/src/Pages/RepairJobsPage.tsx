@@ -7,7 +7,7 @@ import {
 } from "react";
 import Sidebar from "../Components/Sidebar";
 import Toast from "../Components/Toast";
-import CreateRepairModal from "../Components/CreateRepairModal";
+import CreateRepairModal, { type RepairPartDraft } from "../Components/CreateRepairModal";
 import type { AuthUser } from "../types/auth";
 import api, { getApiError } from "../api/axios";
 
@@ -24,6 +24,7 @@ export type RepairJob = {
   technician: string;
   promisedDate: string | null;
   priority: string;
+  parts?: { stockId: string; name: string; quantity: number; total: number }[];
 };
 type ToastState = { message: string; tone: "success" | "error" };
 const statuses = [
@@ -122,7 +123,7 @@ function RepairJobsPage({
     [jobs],
   );
 
-  async function saveRepair(event: FormEvent<HTMLFormElement>) {
+  async function saveRepair(event: FormEvent<HTMLFormElement>, parts: RepairPartDraft[] = []) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setIsCreating(true);
@@ -137,6 +138,7 @@ function RepairJobsPage({
         technician: form.get("technician"),
         promisedDate: form.get("promisedDate"),
         priority: form.get("priority"),
+        parts: parts.map((part) => ({ stockId: part.itemId, quantity: part.quantity })),
       };
       const { data } = editingJob
         ? await api.patch(`/repairs/${editingJob.id}`, payload)
@@ -145,8 +147,8 @@ function RepairJobsPage({
       setEditingJob(null);
       setToast({
         message: editingJob
-          ? "Repair job updated successfully."
-          : `${data.job.jobNumber} created successfully.`,
+          ? `Repair job updated successfully${parts.length ? ` with ${parts.length} part${parts.length === 1 ? "" : "s"} assigned` : ""}.`
+          : `${data.job.jobNumber} created successfully${parts.length ? ` with ${parts.length} part${parts.length === 1 ? "" : "s"} assigned` : ""}.`,
         tone: "success",
       });
       await loadJobs();
@@ -448,6 +450,12 @@ function RepairJobsPage({
           onSubmit={saveRepair}
         />
       )}
+      {viewingJob && (
+        <RepairDetailModal
+          job={viewingJob}
+          onClose={() => setViewingJob(null)}
+        />
+      )}
       {actionJob && actionMenuPosition && (
         <div
           className="fixed z-30 w-40 rounded-xl border border-[#e4e5e8] bg-white p-1.5 shadow-xl"
@@ -487,9 +495,6 @@ function RepairJobsPage({
           </ActionMenuButton>
         </div>
       )}
-      {viewingJob && (
-        <ViewRepairModal job={viewingJob} onClose={() => setViewingJob(null)} />
-      )}
       {statusJob && (
         <RepairStatusModal
           job={statusJob}
@@ -509,6 +514,15 @@ function RepairJobsPage({
     </div>
   );
 }
+
+function RepairDetailModal({ job, onClose }: { job: RepairJob; onClose: () => void }) {
+  const parts = job.parts || [];
+  const date = job.promisedDate
+    ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(job.promisedDate))
+    : "Not set";
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101012]/45 p-4"><section className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[22px] border border-[#e7e7e9] bg-[#fbfbfc] p-6 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#777e8e]">Repair job details</p><h2 className="mt-2 text-xl font-bold tracking-[-.03em] text-[#252932]">{job.jobNumber}</h2><p className="mt-1 text-sm text-[#747a89]">{job.customerName} · {job.assetName}</p></div><button className="grid h-8 w-8 place-items-center rounded-lg text-[#767c89] hover:bg-[#eeeeef]" type="button" onClick={onClose} aria-label="Close">×</button></div><div className="mt-6 grid gap-4 sm:grid-cols-2"><Detail label="Customer" value={job.customerName}/><Detail label="Phone number" value={job.customerPhone||'Not provided'}/><Detail label="Asset type" value={job.assetType}/><Detail label="Asset / model" value={job.assetName}/><Detail label="Identifier" value={job.assetIdentifier||'Not provided'}/><Detail label="Technician" value={job.technician||'Unassigned'}/><Detail label="Priority" value={job.priority}/><Detail label="Promised date" value={date}/><div className="sm:col-span-2"><p className="text-[11px] font-semibold text-[#7b8190]">Reported issue</p><p className="mt-2 whitespace-pre-wrap rounded-xl border border-[#eceef1] bg-white p-3 text-sm leading-6 text-[#414854]">{job.issue}</p></div></div><section className="mt-5 rounded-xl border border-[#e7e7e9] bg-white p-4"><h3 className="text-sm font-semibold text-[#303540]">Assigned parts</h3>{parts.length?<div className="mt-3 divide-y divide-[#f0f1f4] rounded-lg border border-[#eceef1]">{parts.map(part=><div className="flex items-center justify-between gap-3 px-3 py-2" key={part.stockId}><span className="text-xs font-normal text-[#303540]">{part.name} × {part.quantity}</span><span className="text-xs font-normal text-[#69717f]">Rs. {part.total.toFixed(2)}</span></div>)}</div>:<p className="mt-2 text-xs font-normal text-[#7a8090]">No parts assigned yet.</p>}</section><div className="mt-6 flex justify-end"><button className="rounded-xl bg-[#171719] px-4 py-2.5 text-xs font-semibold text-white" type="button" onClick={onClose}>Close</button></div></section></div>;
+}
+function Detail({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-[#eceef1] bg-white p-3"><p className="text-[11px] font-semibold text-[#7b8190]">{label}</p><p className="mt-1 text-sm font-normal text-[#414854]">{value}</p></div>; }
 
 function DeleteRepairModal({
   job,
@@ -553,82 +567,6 @@ function DeleteRepairModal({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ViewRepairModal({
-  job,
-  onClose,
-}: {
-  job: RepairJob;
-  onClose: () => void;
-}) {
-  const date = job.promisedDate
-    ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
-        new Date(job.promisedDate),
-      )
-    : "Not set";
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#101012]/45 p-4">
-      <section
-        className="w-full max-w-lg rounded-[22px] border border-[#e7e7e9] bg-[#fbfbfc] p-6 shadow-2xl"
-        aria-modal="true"
-        role="dialog"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#777e8e]">
-              Repair job details
-            </p>
-            <h2 className="mt-2 text-xl font-bold tracking-[-0.03em] text-[#252932]">
-              {job.jobNumber}
-            </h2>
-          </div>
-          <button
-            className="grid h-8 w-8 place-items-center rounded-lg text-lg text-[#767c89] hover:bg-[#eeeeef]"
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-        <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 text-sm">
-          <Detail label="Customer" value={job.customerName} />
-          <Detail
-            label="Phone number"
-            value={job.customerPhone || "Not provided"}
-          />
-          <Detail label="Asset" value={job.assetName} />
-          <Detail label="Asset type" value={job.assetType} />
-          <Detail
-            label="Identifier"
-            value={job.assetIdentifier || "Not provided"}
-          />
-          <Detail label="Technician" value={job.technician} />
-          <Detail label="Priority" value={job.priority} />
-          <Detail label="Promised date" value={date} />
-          <div className="col-span-2">
-            <Detail label="Status" value={job.status} />
-            <p className="mt-4 text-[11px] font-semibold text-[#737a89]">
-              Reported issue
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#454b58]">
-              {job.issue}
-            </p>
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end">
-          <button
-            className="rounded-xl bg-[#171719] px-4 py-2.5 text-xs font-semibold text-white"
-            type="button"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
-      </section>
     </div>
   );
 }
@@ -698,14 +636,6 @@ function RepairStatusModal({
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[11px] font-semibold text-[#737a89]">{label}</p>
-      <p className="mt-1 break-words font-medium text-[#353a44]">{value}</p>
-    </div>
-  );
-}
 function IconButton({
   label,
   title,

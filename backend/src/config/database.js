@@ -77,6 +77,33 @@ async function initializeDatabase() {
     defaultValue: "Other asset",
   });
   await addRepairColumn("asset_identifier", { type: Sequelize.STRING(160), allowNull: true });
+  await addRepairColumn("parts", { type: Sequelize.JSON, allowNull: false, defaultValue: [] });
+
+  const tables = await queryInterface.showAllTables();
+  if (tables.map((table) => String(table).toLowerCase()).includes("repair_parts")) {
+    await queryInterface.dropTable("repair_parts");
+  }
+
+  const itemColumns = await queryInterface.describeTable("items");
+  const itemIndexes = await queryInterface.showIndex("items");
+  const skuIndex = itemIndexes.find(
+    (index) =>
+      index.unique && index.fields.some((field) => field.attribute === "sku"),
+  );
+  if (skuIndex) await queryInterface.removeIndex("items", skuIndex.name);
+  if (!itemColumns.source) {
+    await queryInterface.addColumn("items", "source", {
+      type: Sequelize.ENUM("catalog", "stock"),
+      allowNull: false,
+      defaultValue: "catalog",
+    });
+  }
+  // Move records created by the former mixed items/stock design to the
+  // dedicated stocks table, then leave items as the catalog only.
+  if (itemColumns.source) {
+    await sequelize.query(`INSERT INTO stocks (id, item_id, name, sku, quantity, cost_price, selling_price, created_at, updated_at) SELECT UUID(), id, name, sku, quantity, cost_price, selling_price, NOW(), NOW() FROM items WHERE source = 'stock'`);
+    await sequelize.query("DELETE FROM items WHERE source = 'stock'");
+  }
 }
 
 module.exports = { sequelize, initializeDatabase };

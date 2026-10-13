@@ -9,8 +9,12 @@ const { initializeDatabase } = require("./config/database");
 const { seedInitialAdmin, seedInitialSuperAdmin } = require("./services/seedAdmin");
 const authRoutes = require("./routes/auth");
 const repairRoutes = require("./routes/repairs");
+const itemRoutes = require("./routes/items");
+const stockRoutes = require("./routes/stocks");
 require("./models/User");
 require("./models/RepairJob");
+require("./models/Item");
+require("./models/Stock");
 
 const app = express();
 const frontendOrigins = new Set(
@@ -47,6 +51,8 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/repairs", repairRoutes);
+app.use("/api/items", itemRoutes);
+app.use("/api/stocks", stockRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 

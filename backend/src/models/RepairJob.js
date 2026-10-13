@@ -30,6 +30,7 @@ const RepairJob = sequelize.define(
     technician: { type: DataTypes.STRING(120), allowNull: true },
     promisedDate: { type: DataTypes.DATE, allowNull: true, field: "promised_date" },
     priority: { type: DataTypes.ENUM("Normal", "High", "Urgent"), allowNull: false, defaultValue: "Normal" },
+    parts: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
     createdBy: { type: DataTypes.UUID, allowNull: false, field: "created_by" },
   },
   { tableName: "repair_jobs", underscored: true },

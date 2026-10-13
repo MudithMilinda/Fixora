@@ -4,20 +4,25 @@ import DashboardPage from './Pages/DashboardPage'
 import ProfilePage from './Pages/ProfilePage'
 import RepairJobsPage from './Pages/RepairJobsPage'
 import RepairHistoryPage from './Pages/RepairHistoryPage'
+import InventoryPage from './Pages/InventoryPage'
+import ItemsPage from './Pages/ItemsPage'
 import type { AuthUser } from './types/auth'
 import api from './api/axios'
 
-type AppPage = 'dashboard' | 'repairs' | 'history' | 'profile'
+type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'profile'
 
 function pageFromPath(pathname: string): AppPage {
+  if (/^\/repair-jobs\/[^/]+$/.test(pathname)) return 'repairs'
   if (pathname === '/repair-jobs') return 'repairs'
   if (pathname === '/repair-history') return 'history'
+  if (pathname === '/inventory') return 'inventory'
+  if (pathname === '/items') return 'items'
   if (pathname === '/profile') return 'profile'
   return 'dashboard'
 }
 
 function pathForPage(page: AppPage) {
-  return page === 'repairs' ? '/repair-jobs' : page === 'history' ? '/repair-history' : page === 'profile' ? '/profile' : '/dashboard'
+  return page === 'repairs' ? '/repair-jobs' : page === 'history' ? '/repair-history' : page === 'inventory' ? '/inventory' : page === 'items' ? '/items' : page === 'profile' ? '/profile' : '/dashboard'
 }
 
 function App() {
@@ -76,6 +81,8 @@ function App() {
     if (currentPage === 'history') {
       return <RepairHistoryPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     }
+    if (currentPage === 'inventory') return <InventoryPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'items') return <ItemsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     return <DashboardPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
   }
 
