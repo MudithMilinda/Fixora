@@ -42,6 +42,8 @@ const User = sequelize.define(
       defaultValue: 0,
       field: "session_version",
     },
+    companyId: { type: DataTypes.UUID, allowNull: true, field: 'company_id' },
+    activeBranchId: { type: DataTypes.UUID, allowNull: true, field: 'active_branch_id' },
   },
   {
     tableName: "users",

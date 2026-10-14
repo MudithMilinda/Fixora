@@ -30,8 +30,11 @@ const RepairJob = sequelize.define(
     technician: { type: DataTypes.STRING(120), allowNull: true },
     promisedDate: { type: DataTypes.DATE, allowNull: true, field: "promised_date" },
     priority: { type: DataTypes.ENUM("Normal", "High", "Urgent"), allowNull: false, defaultValue: "Normal" },
-    parts: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+    // Kept nullable for a safe migration of existing repair jobs. The API
+    // always serializes a missing value as an empty list.
+    parts: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
     createdBy: { type: DataTypes.UUID, allowNull: false, field: "created_by" },
+    branchId: { type: DataTypes.UUID, allowNull: true, field: "branch_id" },
   },
   { tableName: "repair_jobs", underscored: true },
 );

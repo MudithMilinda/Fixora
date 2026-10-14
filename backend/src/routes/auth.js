@@ -2,6 +2,8 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const rateLimit = require("express-rate-limit");
 const User = require("../models/User");
+const Branch = require("../models/Branch");
+const UserBranch = require("../models/UserBranch");
 const { cookieOptions, createSessionToken } = require("../config/auth");
 const { requireAuth } = require("../middleware/requireAuth");
 
@@ -16,7 +18,7 @@ const loginLimiter = rateLimit({
 });
 
 function publicUser(user) {
-  return { id: user.id, fullName: user.fullName, email: user.email, role: user.role };
+  return { id: user.id, fullName: user.fullName, email: user.email, role: user.role, companyId: user.companyId, activeBranchId: user.activeBranchId };
 }
 
 router.post("/login", loginLimiter, async (req, res, next) => {
@@ -44,6 +46,9 @@ router.post("/login", loginLimiter, async (req, res, next) => {
 router.get("/me", requireAuth, (req, res) => {
   res.status(200).json({ success: true, user: publicUser(req.user) });
 });
+
+router.get('/branches', requireAuth, async (req,res,next) => { try { const access=await UserBranch.findAll({where:{userId:req.user.id}}); const branchIds=access.map(row=>row.branchId); const branches=await Branch.findAll({where:{id:branchIds,isActive:true},order:[['name','ASC']]}); res.json({success:true,branches:branches.map(branch=>({id:branch.id,name:branch.name,code:branch.code}))}); } catch(error){next(error)} });
+router.patch('/active-branch', requireAuth, async (req,res,next) => { try { const branchId=typeof req.body.branchId==='string'?req.body.branchId:''; const access=await UserBranch.findOne({where:{userId:req.user.id,branchId}}); if(!access)return res.status(403).json({success:false,message:'You do not have access to this branch.'}); await req.user.update({activeBranchId:branchId}); return res.json({success:true,user:publicUser(req.user)}); } catch(error){next(error)} });
 
 router.patch("/profile", requireAuth, async (req, res, next) => {
   try {

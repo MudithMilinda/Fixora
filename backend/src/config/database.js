@@ -77,7 +77,14 @@ async function initializeDatabase() {
     defaultValue: "Other asset",
   });
   await addRepairColumn("asset_identifier", { type: Sequelize.STRING(160), allowNull: true });
-  await addRepairColumn("parts", { type: Sequelize.JSON, allowNull: false, defaultValue: [] });
+  await addRepairColumn("parts", { type: Sequelize.JSON, allowNull: true });
+
+  // Earlier builds could persist an empty string in the JSON parts column.
+  // MySQL evaluates that invalid JSON when another field on the same row is
+  // updated (for example the new branch_id), so normalize it first.
+  await sequelize.query(
+    "UPDATE repair_jobs SET parts = JSON_ARRAY() WHERE parts IS NULL OR JSON_VALID(parts) = 0",
+  );
 
   const tables = await queryInterface.showAllTables();
   if (tables.map((table) => String(table).toLowerCase()).includes("repair_parts")) {
@@ -104,6 +111,24 @@ async function initializeDatabase() {
     await sequelize.query(`INSERT INTO stocks (id, item_id, name, sku, quantity, cost_price, selling_price, created_at, updated_at) SELECT UUID(), id, name, sku, quantity, cost_price, selling_price, NOW(), NOW() FROM items WHERE source = 'stock'`);
     await sequelize.query("DELETE FROM items WHERE source = 'stock'");
   }
+
+  const Company = require('../models/Company');
+  const Branch = require('../models/Branch');
+  const User = require('../models/User');
+  const UserBranch = require('../models/UserBranch');
+  const [company] = await Company.findOrCreate({ where: { code: 'DEFAULT' }, defaults: { name: process.env.DEFAULT_COMPANY_NAME || 'Fixora', code: 'DEFAULT' } });
+  const [branch] = await Branch.findOrCreate({ where: { companyId: company.id, code: 'MAIN' }, defaults: { companyId: company.id, name: process.env.DEFAULT_BRANCH_NAME || 'Main branch', code: 'MAIN' } });
+  const addColumn = async (table, columns, name, definition) => { if (!columns[name]) await queryInterface.addColumn(table, name, definition); };
+  const currentUserColumns = await queryInterface.describeTable('users');
+  await addColumn('users', currentUserColumns, 'company_id', { type: Sequelize.UUID, allowNull: true });
+  await addColumn('users', currentUserColumns, 'active_branch_id', { type: Sequelize.UUID, allowNull: true });
+  for (const table of ['stocks', 'stock_requests', 'repair_jobs']) { const columns = await queryInterface.describeTable(table); await addColumn(table, columns, 'branch_id', { type: Sequelize.UUID, allowNull: true }); }
+  await User.update({ companyId: company.id, activeBranchId: branch.id }, { where: { companyId: null } });
+  await sequelize.query('UPDATE stocks SET branch_id = ? WHERE branch_id IS NULL', { replacements: [branch.id] });
+  await sequelize.query('UPDATE stock_requests SET branch_id = ? WHERE branch_id IS NULL', { replacements: [branch.id] });
+  await sequelize.query('UPDATE repair_jobs SET branch_id = ? WHERE branch_id IS NULL', { replacements: [branch.id] });
+  const users = await User.findAll({ attributes: ['id'] });
+  await Promise.all(users.map((user) => UserBranch.findOrCreate({ where: { userId: user.id, branchId: branch.id } })));
 }
 
 module.exports = { sequelize, initializeDatabase };

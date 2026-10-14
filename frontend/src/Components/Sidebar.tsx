@@ -1,15 +1,14 @@
 import type { AuthUser } from '../types/auth'
 
-function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenInventory = () => { window.location.href = '/inventory' }, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'profile', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenInventory?: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
+function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenInventory = () => { window.location.href = '/inventory' }, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'suppliers' | 'branches' | 'profile', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenInventory?: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
     const initials = user.fullName.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
     const roleLabel = user.role === 'super_admin' ? 'Super Admin' : 'Administrator'
     return (
-        <aside className="flex h-dvh w-[250px] shrink-0 flex-col border-r border-white/10 bg-[#101012] p-5 text-[#f5f5f5] max-[1100px]:h-auto max-[1100px]:w-full max-[1100px]:border-b max-[1100px]:border-r-0">
+        <aside className="flex h-dvh w-[250px] shrink-0 flex-col overflow-y-auto border-r border-white/10 bg-[#101012] p-5 text-[#f5f5f5] max-[1100px]:h-auto max-[1100px]:w-full max-[1100px]:border-b max-[1100px]:border-r-0">
             <div className="mb-10 flex items-center gap-3 px-1 py-2">
                 <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-white text-sm font-bold text-[#171719]">F</span>
                 <span className="text-[1.05rem] font-bold tracking-tight">Fixora</span>
             </div>
-
             <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77777c]">Workspace</p>
             <nav aria-label="Main navigation">
                 <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'dashboard' ? 'bg-[#29292c] text-white ring-1 ring-inset ring-white/[0.06]' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={onGoDashboard} aria-current={activePage === 'dashboard' ? 'page' : undefined}>
@@ -39,6 +38,13 @@ function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory
             <nav aria-label="Inventory">
                 <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'items' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/items' }}>□ Items</button>
                 <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'inventory' ? 'bg-[#29292c] text-white ring-1 ring-inset ring-white/[0.06]' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={onOpenInventory} aria-current={activePage === 'inventory' ? 'page' : undefined}>▦ Stock store</button>
+            </nav>
+            <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77777c]">Procurement</p>
+            <nav aria-label="Procurement"><button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'purchaseRequests' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/purchase-requests' }}>▤ Purchase requests</button></nav>
+            <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77777c]">Management</p>
+            <nav aria-label="Management">
+                <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'suppliers' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/suppliers' }}>♙ Suppliers</button>
+                <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'branches' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/branches' }}>⌘ Create branch</button>
             </nav>
 
             <div className="mt-auto flex items-center gap-1 border-t border-white/[0.08] pt-4">

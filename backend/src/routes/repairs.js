@@ -31,7 +31,7 @@ router.get("/", async (req, res, next) => {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const status = typeof req.query.status === "string" ? req.query.status : "";
     const activeStatuses = REPAIR_STATUSES.filter((item) => !["Delivered", "Closed", "Cancelled"].includes(item));
-    const where = { status: status && activeStatuses.includes(status) ? status : { [Op.in]: activeStatuses } };
+    const where = { branchId: req.branchId, status: status && activeStatuses.includes(status) ? status : { [Op.in]: activeStatuses } };
     if (search) {
       where[Op.or] = [
         { jobNumber: { [Op.like]: `%${search}%` } },
@@ -71,7 +71,7 @@ router.post("/", async (req, res, next) => {
     const parts = [];
     for (const requestedPart of requestedParts) {
       const quantity = Number(requestedPart.quantity);
-      const stock = await Stock.findByPk(requestedPart.stockId);
+      const stock = await Stock.findOne({ where: { id: requestedPart.stockId, branchId: req.branchId } });
       if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." });
       await stock.update({ quantity: stock.quantity - quantity });
       parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), total: Number(stock.sellingPrice) * quantity });
@@ -88,6 +88,7 @@ router.post("/", async (req, res, next) => {
       technician: technician || null,
       promisedDate,
       priority,
+      branchId: req.branchId,
       parts,
       createdBy: req.user.id,
     });
@@ -102,7 +103,7 @@ router.get("/history", async (req, res, next) => {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const status = typeof req.query.status === "string" ? req.query.status : "";
     const historyStatuses = ["Delivered", "Closed"];
-    const where = { status: status && historyStatuses.includes(status) ? status : { [Op.in]: historyStatuses } };
+    const where = { branchId: req.branchId, status: status && historyStatuses.includes(status) ? status : { [Op.in]: historyStatuses } };
     if (search) {
       where[Op.or] = [
         { jobNumber: { [Op.like]: `%${search}%` } },
@@ -119,7 +120,7 @@ router.get("/history", async (req, res, next) => {
 
 router.get("/:id", async (req, res, next) => {
   try {
-    const job = await RepairJob.findByPk(req.params.id);
+    const job = await RepairJob.findOne({ where: { id: req.params.id, branchId: req.branchId } });
     if (!job) return res.status(404).json({ success: false, message: "Repair job not found." });
     return res.status(200).json({ success: true, job: serialize(job) });
   } catch (error) {
@@ -129,7 +130,7 @@ router.get("/:id", async (req, res, next) => {
 
 router.patch("/:id", async (req, res, next) => {
   try {
-    const job = await RepairJob.findByPk(req.params.id);
+    const job = await RepairJob.findOne({ where: { id: req.params.id, branchId: req.branchId } });
     if (!job) return res.status(404).json({ success: false, message: "Repair job not found." });
 
     const customerName = typeof req.body.customerName === "string" ? req.body.customerName.trim() : job.customerName;
@@ -146,7 +147,7 @@ router.patch("/:id", async (req, res, next) => {
     if (promisedDate && Number.isNaN(promisedDate.getTime())) return res.status(400).json({ success: false, message: "Enter a valid promised date." });
 
     const parts = Array.isArray(job.parts) ? [...job.parts] : [];
-    for (const requestedPart of requestedParts) { const quantity = Number(requestedPart.quantity); const stock = await Stock.findByPk(requestedPart.stockId); if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." }); await stock.update({ quantity: stock.quantity - quantity }); parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), total: Number(stock.sellingPrice) * quantity }); }
+    for (const requestedPart of requestedParts) { const quantity = Number(requestedPart.quantity); const stock = await Stock.findOne({ where: { id: requestedPart.stockId, branchId: req.branchId } }); if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." }); await stock.update({ quantity: stock.quantity - quantity }); parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), total: Number(stock.sellingPrice) * quantity }); }
     await job.update({ customerName, assetName, issue, assetType, priority, status, promisedDate, parts, customerPhone: typeof req.body.customerPhone === "string" ? req.body.customerPhone.trim() || null : job.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === "string" ? req.body.assetIdentifier.trim() || null : job.assetIdentifier, technician: typeof req.body.technician === "string" ? req.body.technician.trim() || null : job.technician });
     return res.status(200).json({ success: true, message: "Repair job updated.", job: serialize(job) });
   } catch (error) { return next(error); }
@@ -154,7 +155,7 @@ router.patch("/:id", async (req, res, next) => {
 
 router.delete("/:id", async (req, res, next) => {
   try {
-    const job = await RepairJob.findByPk(req.params.id);
+    const job = await RepairJob.findOne({ where: { id: req.params.id, branchId: req.branchId } });
     if (!job) return res.status(404).json({ success: false, message: "Repair job not found." });
     await job.destroy();
     return res.status(204).end();

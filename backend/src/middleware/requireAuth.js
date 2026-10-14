@@ -15,6 +15,7 @@ async function requireAuth(req, res, next) {
     }
 
     req.user = user;
+    req.branchId = user.activeBranchId;
     return next();
   } catch {
     return res.status(401).json({ success: false, message: "Your session has expired. Please sign in again." });

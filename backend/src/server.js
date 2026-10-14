@@ -11,10 +11,18 @@ const authRoutes = require("./routes/auth");
 const repairRoutes = require("./routes/repairs");
 const itemRoutes = require("./routes/items");
 const stockRoutes = require("./routes/stocks");
+const stockRequestRoutes = require("./routes/stockRequests");
+const branchRoutes = require("./routes/branches");
+const supplierRoutes = require("./routes/suppliers");
 require("./models/User");
 require("./models/RepairJob");
 require("./models/Item");
 require("./models/Stock");
+require("./models/StockRequest");
+require("./models/Company");
+require("./models/Branch");
+require("./models/UserBranch");
+require("./models/Supplier");
 
 const app = express();
 const frontendOrigins = new Set(
@@ -53,6 +61,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/repairs", repairRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/stocks", stockRoutes);
+app.use("/api/stock-requests", stockRequestRoutes);
+app.use("/api/branches", branchRoutes);
+app.use("/api/suppliers", supplierRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 

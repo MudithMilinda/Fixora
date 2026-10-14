@@ -6,10 +6,13 @@ import RepairJobsPage from './Pages/RepairJobsPage'
 import RepairHistoryPage from './Pages/RepairHistoryPage'
 import InventoryPage from './Pages/InventoryPage'
 import ItemsPage from './Pages/ItemsPage'
+import BranchesPage from './Pages/BranchesPage'
+import PurchaseRequestsPage from './Pages/PurchaseRequestsPage'
+import SuppliersPage from './Pages/SuppliersPage'
 import type { AuthUser } from './types/auth'
 import api from './api/axios'
 
-type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'profile'
+type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'suppliers' | 'branches' | 'profile'
 
 function pageFromPath(pathname: string): AppPage {
   if (/^\/repair-jobs\/[^/]+$/.test(pathname)) return 'repairs'
@@ -17,12 +20,15 @@ function pageFromPath(pathname: string): AppPage {
   if (pathname === '/repair-history') return 'history'
   if (pathname === '/inventory') return 'inventory'
   if (pathname === '/items') return 'items'
+  if (pathname === '/purchase-requests') return 'purchaseRequests'
+  if (pathname === '/suppliers') return 'suppliers'
+  if (pathname === '/branches') return 'branches'
   if (pathname === '/profile') return 'profile'
   return 'dashboard'
 }
 
 function pathForPage(page: AppPage) {
-  return page === 'repairs' ? '/repair-jobs' : page === 'history' ? '/repair-history' : page === 'inventory' ? '/inventory' : page === 'items' ? '/items' : page === 'profile' ? '/profile' : '/dashboard'
+  return page === 'repairs' ? '/repair-jobs' : page === 'history' ? '/repair-history' : page === 'inventory' ? '/inventory' : page === 'items' ? '/items' : page === 'purchaseRequests' ? '/purchase-requests' : page === 'suppliers' ? '/suppliers' : page === 'branches' ? '/branches' : page === 'profile' ? '/profile' : '/dashboard'
 }
 
 function App() {
@@ -83,6 +89,9 @@ function App() {
     }
     if (currentPage === 'inventory') return <InventoryPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'items') return <ItemsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'purchaseRequests') return <PurchaseRequestsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'suppliers') return <SuppliersPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'branches') return <BranchesPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     return <DashboardPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
   }
 
