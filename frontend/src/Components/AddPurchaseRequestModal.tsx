@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import api, { getApiError } from "../api/axios";
 import PurchaseItemSelect from "./PurchaseItemSelect";
-import "./AddPurchaseRequestModal.css";
 
 type Item = { id: string; name: string; sku: string | null; quantity: number };
 type Line = { item: Item; quantity: string };
@@ -25,7 +24,7 @@ export default function AddPurchaseRequestModal({
   onCreated: (count: number) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const itemSelectRef = useRef<HTMLInputElement>(null);
+  const itemSelectRef = useRef<HTMLButtonElement>(null);
   const submitting = useRef(false);
   const lowStockRequest = useRef<AbortController | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
@@ -147,7 +146,7 @@ export default function AddPurchaseRequestModal({
   return (
     <dialog
       ref={dialogRef}
-      className="purchase-request-modal"
+      className="m-auto w-[min(780px,calc(100vw-32px))] max-h-[calc(100dvh-48px)] overflow-hidden rounded-[22px] border border-[#e4e6eb] bg-white p-0 text-[#262b3a] shadow-[0_24px_80px_#10101240] backdrop:bg-[#10101280] backdrop:backdrop-blur-[3px]"
       aria-labelledby="purchase-request-title"
       aria-describedby="purchase-request-description"
       onCancel={(event) => {
@@ -155,31 +154,31 @@ export default function AddPurchaseRequestModal({
         if (!submitting.current) onClose();
       }}
     >
-      <form onSubmit={addLine} aria-busy={isSaving || isLoadingLowStock}>
-        <header className="purchase-modal-header">
+      <form className="flex max-h-[calc(100dvh-50px)] flex-col" onSubmit={addLine} aria-busy={isSaving || isLoadingLowStock}>
+        <header className="flex shrink-0 items-start justify-between gap-5 border-b border-[#eceef2] px-7 py-[26px] pb-[22px] max-sm:p-5">
           <div>
-            <p className="purchase-modal-eyebrow">Procurement</p>
-            <h2 id="purchase-request-title">Add purchase request</h2>
-            <p id="purchase-request-description">Select an item and quantity, then click + to add it to the list below.</p>
+            <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#7a8090]">Procurement</p>
+            <h2 id="purchase-request-title" className="my-2 text-[22px] font-bold">Add purchase request</h2>
+            <p id="purchase-request-description" className="text-[13px] leading-relaxed text-[#747a89]">Select an item and quantity, then click + to add it to the list below.</p>
           </div>
-          <button type="button" className="purchase-modal-icon" aria-label="Close add purchase request" disabled={isSaving} onClick={onClose}>×</button>
+          <button type="button" className="inline-flex h-[46px] w-10 shrink-0 items-center justify-center rounded-[11px] border border-[#e2e4e9] bg-[#f7f7f9] text-2xl text-[#626875] disabled:cursor-not-allowed disabled:opacity-50" aria-label="Close add purchase request" disabled={isSaving} onClick={onClose}>×</button>
         </header>
 
-        <div className="purchase-modal-body">
-          <div className="purchase-modal-low-stock">
+        <div className="min-h-0 overflow-y-auto px-7 pb-6 pt-2 max-sm:px-5 max-sm:pb-5">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#f1dfbd] bg-[#fffaf1] px-4 py-3.5">
             <div>
-              <strong>Restock items</strong>
-              <p>Add this branch’s low-stock items to your purchase list.</p>
+              <strong className="text-[13px] font-semibold">Restock items</strong>
+              <p className="mt-1 text-xs text-[#7a7469]">Add this branch’s low-stock items to your purchase list.</p>
             </div>
-            <button type="button" disabled={isSaving || isLoadingLowStock} onClick={() => void addLowStockItems()}>
+            <button type="button" className="min-h-[38px] whitespace-nowrap rounded-[9px] border border-[#e7ca99] bg-white px-3.5 text-xs font-semibold text-[#95600b] hover:bg-[#fff1d6] disabled:cursor-not-allowed disabled:opacity-50" disabled={isSaving || isLoadingLowStock} onClick={() => void addLowStockItems()}>
               {isLoadingLowStock ? "Loading…" : "Low quantity"}
             </button>
           </div>
-          {lowStockMessage && <p className="purchase-modal-stock" role="status">{lowStockMessage}</p>}
-          {!items.length && <p className="purchase-modal-error">No items are available. Add an item to the catalog first.</p>}
-          <fieldset disabled={isSaving || isLoadingLowStock || !items.length}>
-                <div className="purchase-modal-line">
-                  <div className="purchase-modal-fields">
+          {lowStockMessage && <p className="mt-2.5 text-xs text-[#7a8090]" role="status">{lowStockMessage}</p>}
+          {!items.length && <p className="mt-4 rounded-[10px] bg-[#fff0ef] p-3 text-[13px] text-[#a03b34]">No items are available. Add an item to the catalog first.</p>}
+          <fieldset className="m-0 min-w-0 border-0 p-0 disabled:opacity-65" disabled={isSaving || isLoadingLowStock || !items.length}>
+                <div className="border-b border-[#eef0f2] py-5">
+                  <div className="grid grid-cols-[minmax(0,1fr)_132px_auto] items-start gap-3 max-sm:grid-cols-[minmax(0,1fr)_auto]">
                     <PurchaseItemSelect
                       items={items}
                       value={itemId}
@@ -187,47 +186,48 @@ export default function AddPurchaseRequestModal({
                       disabled={isSaving || isLoadingLowStock || !items.length}
                       onChange={(id) => { setItemId(id); setError(""); }}
                     />
-                    <label htmlFor="purchase-quantity">
+                    <label htmlFor="purchase-quantity" className="min-w-0 text-xs font-semibold text-[#4b5260]">
                       Quantity
                       <input
                         id="purchase-quantity"
+                        className="mt-2 block h-[46px] w-full rounded-[11px] border border-[#dfe2e8] bg-white px-3 text-sm font-normal"
                         type="number" min="1" max="4294967295" step="1" placeholder="Enter qty"
                         value={quantity}
                         onChange={(event) => { setQuantity(event.target.value); setError(""); }}
                         required
                       />
                     </label>
-                    <div className="purchase-modal-row-actions">
-                      <button className="purchase-modal-icon purchase-modal-plus" type="submit" aria-label="Add item to purchase list" title="Add item to purchase list">+</button>
+                    <div className="mt-[27px] flex gap-1.5">
+                      <button className="inline-flex h-[46px] w-10 shrink-0 items-center justify-center rounded-[11px] border border-[#171719] bg-[#171719] text-2xl text-white disabled:cursor-not-allowed disabled:opacity-50" type="submit" aria-label="Add item to purchase list" title="Add item to purchase list">+</button>
                     </div>
                   </div>
-                  <p className="purchase-modal-stock">{selectedItem ? `${selectedItem.sku || "No SKU"} · Current stock: ${selectedItem.quantity}` : "Choose an item to see current stock."}</p>
+                  <p className="mt-2.5 text-xs text-[#7a8090]">{selectedItem ? `${selectedItem.sku || "No SKU"} · Current stock: ${selectedItem.quantity}` : "Choose an item to see current stock."}</p>
                 </div>
           </fieldset>
-          <section className="purchase-modal-list" aria-labelledby="purchase-list-title">
-            <div className="purchase-modal-list-heading">
-              <h3 id="purchase-list-title">Purchase list</h3>
-              <span role="status">{lines.length} {lines.length === 1 ? "item" : "items"}</span>
+          <section className="mt-[22px]" aria-labelledby="purchase-list-title">
+            <div className="mb-3.5 flex items-center justify-between gap-3">
+              <h3 id="purchase-list-title" className="text-sm font-bold">Purchase list</h3>
+              <span role="status" className="rounded-[20px] bg-[#f1f2f5] px-2.5 py-[5px] text-xs text-[#626875]">{lines.length} {lines.length === 1 ? "item" : "items"}</span>
             </div>
             {lines.length ? (
-              <div className="purchase-modal-table-wrap" role="region" aria-labelledby="purchase-list-title" tabIndex={0}>
-                <table className="purchase-modal-table" aria-labelledby="purchase-list-title">
+              <div className="overflow-x-auto rounded-xl border border-[#e6e8ed]" role="region" aria-labelledby="purchase-list-title" tabIndex={0}>
+                <table className="w-full min-w-[480px] border-collapse text-left text-[13px] [&_th]:px-3.5 [&_th]:py-3 [&_th]:align-middle [&_td]:px-3.5 [&_td]:py-3 [&_td]:align-middle [&_thead]:bg-[#f5f6f8] [&_thead]:text-[10px] [&_thead]:font-semibold [&_thead]:uppercase [&_thead]:tracking-[.06em] [&_thead]:text-[#747a89] [&_tbody_tr]:border-t [&_tbody_tr]:border-[#eceef2] [&_tbody_tr:nth-child(even)]:bg-[#fafafb]" aria-labelledby="purchase-list-title">
                   <thead>
                     <tr>
                       <th scope="col">Item</th>
                       <th scope="col">SKU</th>
-                      <th scope="col" className="purchase-modal-table-quantity">Quantity</th>
-                      <th scope="col" className="purchase-modal-table-action">Remove</th>
+                      <th scope="col" className="w-[90px] text-right font-semibold tabular-nums">Quantity</th>
+                      <th scope="col" className="w-[72px] text-center">Remove</th>
                     </tr>
                   </thead>
                   <tbody>
                     {lines.map((line) => (
                       <tr key={line.item.id}>
-                        <th scope="row">{line.item.name}</th>
-                        <td className="purchase-modal-table-sku">{line.item.sku || "No SKU"}</td>
-                        <td className="purchase-modal-table-quantity">
+                        <th scope="row" className="break-words font-semibold">{line.item.name}</th>
+                        <td className="break-words text-[#7a8090]">{line.item.sku || "No SKU"}</td>
+                        <td className="w-[90px] text-right font-semibold tabular-nums">
                           <input
-                            className="purchase-modal-quantity-input"
+                            className="h-9 w-28 rounded-lg border border-[#dfe2e8] bg-white px-2 text-right text-inherit text-[#262b3a] aria-[invalid=true]:border-[#bd4940] aria-[invalid=true]:bg-[#fff5f4] disabled:cursor-not-allowed disabled:opacity-60"
                             type="number" min="1" max="4294967295" step="1"
                             aria-label={`Quantity for ${line.item.name}`}
                             aria-invalid={!isValidQuantity(line.quantity)}
@@ -244,9 +244,9 @@ export default function AddPurchaseRequestModal({
                             }}
                           />
                         </td>
-                        <td className="purchase-modal-table-action">
+                        <td className="w-[72px] text-center">
                           <button
-                            type="button" className="purchase-modal-icon"
+                            type="button" className="inline-flex h-[46px] w-10 shrink-0 items-center justify-center rounded-[11px] border border-[#e2e4e9] bg-[#f7f7f9] text-2xl text-[#626875] disabled:cursor-not-allowed disabled:opacity-50"
                             aria-label={`Remove ${line.item.name} from purchase list`}
                             title="Remove item" disabled={isSaving || isLoadingLowStock}
                             onClick={() => { setLines((current) => current.filter((entry) => entry.item.id !== line.item.id)); setError(""); }}
@@ -257,16 +257,16 @@ export default function AddPurchaseRequestModal({
                   </tbody>
                 </table>
               </div>
-            ) : <p className="purchase-modal-list-empty">No items added yet. Use + above to build your purchase list.</p>}
+            ) : <p className="rounded-xl border border-dashed border-[#dfe2e8] px-4 py-6 text-center text-[13px] leading-relaxed text-[#7a8090]">No items added yet. Use + above to build your purchase list.</p>}
           </section>
-          {error && <p className="purchase-modal-error" role="alert">{error}</p>}
+          {error && <p className="mt-4 rounded-[10px] bg-[#fff0ef] p-3 text-[13px] text-[#a03b34]" role="alert">{error}</p>}
         </div>
 
-        <footer className="purchase-modal-footer">
-          <p>{lines.length} {lines.length === 1 ? "item" : "items"} · Total quantity: {totalQuantity}</p>
-          <div className="purchase-modal-footer-actions">
-            <button type="button" className="purchase-modal-cancel" disabled={isSaving} onClick={onClose}>Cancel</button>
-            <button type="button" className="purchase-modal-submit" disabled={isSaving || isLoadingLowStock || !lines.length} onClick={() => void submit()}>
+        <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-[#eceef2] bg-[#fafafb] px-7 py-5 max-sm:flex-col max-sm:items-stretch max-sm:px-5 max-sm:py-4">
+          <p className="text-xs text-[#747a89]">{lines.length} {lines.length === 1 ? "item" : "items"} · Total quantity: {totalQuantity}</p>
+          <div className="flex gap-3 max-sm:justify-end">
+            <button type="button" className="min-h-[46px] rounded-[11px] border border-[#dfe2e8] bg-white px-[18px] text-[13px] font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={isSaving} onClick={onClose}>Cancel</button>
+            <button type="button" className="min-h-[46px] rounded-[11px] bg-[#171719] px-[18px] text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={isSaving || isLoadingLowStock || !lines.length} onClick={() => void submit()}>
               {isSaving ? "Adding requests…" : "Add purchase requests"}
             </button>
           </div>

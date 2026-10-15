@@ -1,6 +1,7 @@
 const { Sequelize } = require("sequelize");
 const mysql = require("mysql2/promise");
 const { escapeId } = require("mysql2");
+const { migrateSupplierPhones } = require("./migrateSupplierPhones");
 
 const databaseName = process.env.DB_NAME || "fixora";
 const host = process.env.DB_HOST || "127.0.0.1";
@@ -36,6 +37,7 @@ async function initializeDatabase() {
 
   await sequelize.authenticate();
   await sequelize.sync();
+  await migrateSupplierPhones(sequelize);
 
   // Keep the authentication session version available for databases created
   // before this field was introduced, without using destructive schema sync.

@@ -1,3 +1,4 @@
+import AppSelect from '../Components/AppSelect'
 import {
   useEffect,
   useMemo,
@@ -49,7 +50,6 @@ const statusStyles: Record<string, string> = {
   Cancelled: "bg-[#fff0ef] text-[#bd4940]",
 };
 
-const selectArrow = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667080' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
 
 function RepairJobsPage({
   user,
@@ -314,18 +314,7 @@ function RepairJobsPage({
               />
             </form>
             <div className="min-w-[180px]">
-              <select
-                className="w-full cursor-pointer rounded-xl border border-[#e5e6ea] bg-white py-2.5 pr-10 text-xs font-semibold text-[#535966] outline-none"
-                style={{
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  MozAppearance: "none",
-                  paddingLeft: "18px",
-                  backgroundImage: selectArrow,
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "right 14px center",
-                  backgroundSize: "14px 14px",
-                }}
+              <AppSelect aria-label="Filter repair status"
                 value={status}
                 onChange={(event) => setStatus(event.target.value)}
               >
@@ -335,7 +324,7 @@ function RepairJobsPage({
                     {item}
                   </option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
           </div>
           <div className="mt-5 overflow-x-auto">
@@ -600,9 +589,7 @@ function RepairStatusModal({
         </h2>
         <label className="mt-6 block text-[11px] font-semibold text-[#4b5260]">
           <span>Repair status</span>
-          <select
-            className="mt-2 h-11 w-full appearance-none rounded-[10px] border border-[#e7e7e9] bg-white px-3 pr-10 text-sm font-normal text-[#252934] outline-none focus:border-[#171719] focus:ring-2 focus:ring-[#171719]/10"
-            style={{ backgroundImage: selectArrow, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', backgroundSize: '15px 15px' }}
+          <AppSelect className="mt-2" aria-label="Repair status" disabled={isUpdating}
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
@@ -612,7 +599,7 @@ function RepairStatusModal({
             <option>Delivered</option>
             <option>Closed</option>
             <option>Cancelled</option>
-          </select>
+          </AppSelect>
         </label>
         <div className="mt-6 flex justify-end gap-3">
           <button

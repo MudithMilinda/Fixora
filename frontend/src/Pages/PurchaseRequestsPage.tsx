@@ -7,7 +7,6 @@ import type { CompanyProfile } from "../types/company";
 import { waitForDocumentImages } from "../utils/documentBranding";
 import { purchaseRequestPrintHtml } from "../utils/purchaseRequestPrint";
 import api, { getApiError } from "../api/axios";
-import "./PurchaseRequestsPage.css";
 
 type PurchaseRequest = {
   id: string;
@@ -205,32 +204,32 @@ export default function PurchaseRequestsPage({
           </div>
         </header>
 
-        <div className="purchase-requests-content">
+        <div className="mt-6">
           <section
-            className="purchase-requests-card"
+            className="rounded-[18px] border border-[#eceaf2] bg-white p-5 shadow-sm max-sm:p-4"
             aria-labelledby="request-list-title"
           >
-            <div className="purchase-requests-heading">
+            <div className="mb-6 flex items-center justify-between gap-4">
               <div>
-                <h2 id="request-list-title">Request list</h2>
-                <p>
+                <h2 id="request-list-title" className="m-0 text-base font-semibold">Request list</h2>
+                <p className="mt-1 text-xs text-[#747a89]">
                   All purchase requests created for this branch.
                 </p>
               </div>
-              <span className="purchase-requests-count">
+              <span className="whitespace-nowrap rounded-[20px] bg-[#f1f1f3] px-3 py-[5px] text-xs text-[#626875]">
                 {requests.length} total
               </span>
             </div>
 
-            <div className="purchase-requests-table-wrap" role="region" aria-label="Purchase requests table" tabIndex={0}>
-              <table className="purchase-requests-table" aria-labelledby="request-list-title">
+            <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ad6338]" role="region" aria-label="Purchase requests table" tabIndex={0}>
+              <table className="w-full min-w-[760px] border-collapse text-left text-sm [&_th]:px-4 [&_th]:pb-3 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[.04em] [&_th]:text-[#777e8e] [&_th:first-child]:pl-0 [&_th:last-child]:pr-0 [&_tbody_tr]:border-t [&_tbody_tr]:border-[#f0f1f4] [&_td]:px-4 [&_td]:py-4 [&_td]:align-middle [&_td:first-child]:pl-0 [&_td:last-child]:pr-0" aria-labelledby="request-list-title">
                 <thead>
                   <tr>
                     <th scope="col">Item</th>
                     <th scope="col">SKU</th>
-                    <th scope="col" className="purchase-requests-number">Quantity</th>
+                    <th scope="col" className="text-right">Quantity</th>
                     <th scope="col">Created</th>
-                    <th scope="col" className="purchase-requests-actions">Actions</th>
+                    <th scope="col" className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -238,7 +237,7 @@ export default function PurchaseRequestsPage({
                     <tr>
                       <td
                         colSpan={5}
-                        className="purchase-requests-empty"
+                        className="px-4 py-14 text-center text-[#747a89]"
                       >
                         Loading purchase requests…
                       </td>
@@ -248,19 +247,19 @@ export default function PurchaseRequestsPage({
                       <tr
                         key={request.id}
                       >
-                        <td className="purchase-requests-item">
+                        <td className="w-[34%] min-w-[200px] font-semibold">
                           <p>
                             {request.itemName}
                           </p>
-                          {request.note && <p className="purchase-requests-note">{request.note}</p>}
+                          {request.note && <p className="mt-1 text-xs font-normal leading-relaxed text-[#7a8090]">{request.note}</p>}
                         </td>
-                        <td className="purchase-requests-muted">{request.sku || "—"}</td>
-                        <td className="purchase-requests-number">
+                        <td className="break-words text-[#747a89]">{request.sku || "—"}</td>
+                        <td className="text-right tabular-nums">
                           {request.quantity}
                         </td>
-                        <td className="purchase-requests-date">{new Date(request.createdAt).toLocaleDateString()}</td>
-                        <td className="purchase-requests-actions">
-                          <div className="purchase-requests-action-buttons">
+                        <td className="whitespace-nowrap text-[#747a89]">{new Date(request.createdAt).toLocaleDateString()}</td>
+                        <td className="text-right">
+                          <div className="flex justify-end gap-1.5">
                             <IconButton
                               label={`Edit ${request.itemName}`}
                               onClick={() => setEditing(request)}
@@ -281,10 +280,10 @@ export default function PurchaseRequestsPage({
                     <tr>
                       <td
                         colSpan={5}
-                        className="purchase-requests-empty"
+                        className="px-4 py-14 text-center text-[#747a89]"
                       >
-                        <p>No purchase requests yet.</p>
-                        <span>Click “Add purchase request” to create your first request.</span>
+                        <p className="text-sm font-medium">No purchase requests yet.</p>
+                        <span className="mt-[7px] block text-xs text-[#8a909c]">Click “Add purchase request” to create your first request.</span>
                       </td>
                     </tr>
                   )}
@@ -292,13 +291,13 @@ export default function PurchaseRequestsPage({
               </table>
             </div>
 
-            <div className="purchase-requests-summary">
-              <div>
-                <span>Total requests</span>
+            <div className="mt-1 flex flex-wrap justify-between gap-x-6 gap-y-3 border-t border-[#f0f1f4] pt-4 text-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="text-[#747a89]">Total requests</span>
                 <strong>{requests.length}</strong>
               </div>
-              <div>
-                <span>Total quantity</span>
+              <div className="flex items-center gap-2.5">
+                <span className="text-[#747a89]">Total quantity</span>
                 <strong>{totalQuantity}</strong>
               </div>
             </div>

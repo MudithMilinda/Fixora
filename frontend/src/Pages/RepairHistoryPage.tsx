@@ -1,3 +1,4 @@
+import AppSelect from '../Components/AppSelect'
 import { useEffect, useState } from "react";
 import Sidebar from "../Components/Sidebar";
 import ReceiptModal from "../Components/RepairReceiptModal";
@@ -11,7 +12,6 @@ const statusStyles: Record<string, string> = {
   Delivered: "bg-[#edf8f1] text-[#31865a]",
   Closed: "bg-[#f0f1f3] text-[#69717f]",
 };
-const selectArrow = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667080' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
 
 function RepairHistoryPage({
   user,
@@ -128,18 +128,7 @@ function RepairHistoryPage({
               />
             </form>
             <div className="min-w-[180px]">
-              <select
-                className="w-full cursor-pointer rounded-xl border border-[#e5e6ea] bg-white py-2.5 pr-10 text-xs font-semibold text-[#535966] outline-none"
-                style={{
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  MozAppearance: "none",
-                  paddingLeft: "18px",
-                  backgroundImage: selectArrow,
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "right 14px center",
-                  backgroundSize: "14px 14px",
-                }}
+              <AppSelect aria-label="Filter repair history"
                 value={status}
                 onChange={(event) => setStatus(event.target.value)}
               >
@@ -147,7 +136,7 @@ function RepairHistoryPage({
                 {historyStatuses.map((item) => (
                   <option key={item}>{item}</option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} aria-label="From date" />
             <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} aria-label="To date" />

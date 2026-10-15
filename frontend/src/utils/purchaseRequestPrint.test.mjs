@@ -52,6 +52,15 @@ test('disabled branding omits all company fields', () => {
   for (const value of [company.name, company.logo, company.phone, company.address]) assert.ok(!html.includes(value));
 });
 
+test('prints full cell borders for item columns and totals', () => {
+  const html = render();
+  for (const selector of ['.items th', '.items td', '.summary th, .summary td']) {
+    const start = html.indexOf(`${selector} {`);
+    const rule = html.slice(start, html.indexOf('}', start));
+    assert.ok(rule.includes('border: 1px solid #d4d4d4;'), selector);
+  }
+});
+
 test('escapes company, user and request values', () => {
   const html = render({ preparedBy: '<script>alert(1)</script>', company: { ...company, name: 'A & B', logo: 'javascript:alert(1)' }, requests: [{ ...requests[0], itemName: '<img onerror="alert(1)">', note: 'A & B' }] });
   assert.ok(!html.includes('<script>'));

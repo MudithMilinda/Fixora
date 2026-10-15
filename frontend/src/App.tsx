@@ -9,14 +9,16 @@ import ItemsPage from './Pages/ItemsPage'
 import BranchesPage from './Pages/BranchesPage'
 import PurchaseRequestsPage from './Pages/PurchaseRequestsPage'
 import SuppliersPage from './Pages/SuppliersPage'
+import QuotationsPage from './Pages/QuotationsPage'
 import CompanySettingsPage from './Pages/CompanySettingsPage'
 import type { AuthUser } from './types/auth'
 import api from './api/axios'
 import { CompanyBrandingProvider } from './CompanyBrandingContext'
 
-type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'suppliers' | 'branches' | 'profile' | 'companySettings'
+type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'suppliers' | 'branches' | 'profile' | 'companySettings'
 
 function pageFromPath(pathname: string): AppPage {
+  if (pathname === '/quotations') return 'quotations'
   if (pathname === '/company-settings') return 'companySettings'
   if (/^\/repair-jobs\/[^/]+$/.test(pathname)) return 'repairs'
   if (pathname === '/repair-jobs') return 'repairs'
@@ -31,6 +33,7 @@ function pageFromPath(pathname: string): AppPage {
 }
 
 function pathForPage(page: AppPage) {
+  if (page === 'quotations') return '/quotations'
   if (page === 'companySettings') return '/company-settings'
   return page === 'repairs' ? '/repair-jobs' : page === 'history' ? '/repair-history' : page === 'inventory' ? '/inventory' : page === 'items' ? '/items' : page === 'purchaseRequests' ? '/purchase-requests' : page === 'suppliers' ? '/suppliers' : page === 'branches' ? '/branches' : page === 'profile' ? '/profile' : '/dashboard'
 }
@@ -83,6 +86,7 @@ function App() {
 
   if (isSignedIn && user) {
     const renderPage = () => {
+    if (currentPage === 'quotations') return <QuotationsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'companySettings') return <CompanySettingsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'profile') {
       return <ProfilePage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onProfileUpdated={setUser} onSignOut={handleSignOut} />

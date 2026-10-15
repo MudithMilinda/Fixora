@@ -57,15 +57,15 @@ export function purchaseRequestPrintHtml({ company, requests, preparedBy, date =
     .document-meta th { text-align: left; font-weight: 400; padding: 1px 12px 1px 0; }
     .document-meta td { text-align: right; font-weight: 700; white-space: nowrap; }
     .items { border-collapse: collapse; width: 100%; table-layout: fixed; border: 1px solid #d4d4d4; }
-    .items th { padding: 10px; background: #f1f1f1; font-size: 9pt; font-weight: 700; text-align: left; text-transform: uppercase; border-bottom: 1px solid #d4d4d4; }
-    .items td { padding: 10px; border-bottom: 1px solid #d4d4d4; vertical-align: top; overflow-wrap: anywhere; }
+    .items th { padding: 10px; background: #f1f1f1; font-size: 9pt; font-weight: 700; text-align: left; text-transform: uppercase; border: 1px solid #d4d4d4; }
+    .items td { padding: 10px; border: 1px solid #d4d4d4; vertical-align: top; overflow-wrap: anywhere; }
     .items .numeric { text-align: right; font-variant-numeric: tabular-nums; }
     .item-name { display: block; }
     .row-number { font-variant-numeric: tabular-nums; }
     .quotation-intro { break-inside: avoid; break-after: avoid; }
     .quotation-note { margin: 0 0 5mm; color: #606060; font-size: 9pt; }
     .summary { width: 52%; margin: 8px 0 0 auto; border: 1px solid #d4d4d4; border-collapse: collapse; break-inside: avoid; }
-    .summary th, .summary td { padding: 9px 12px; font-size: 9pt; }
+    .summary th, .summary td { padding: 9px 12px; font-size: 9pt; border: 1px solid #d4d4d4; }
     .summary th { text-align: left; text-transform: uppercase; font-weight: 700; }
     .summary td { text-align: right; font-variant-numeric: tabular-nums; }
     .summary .total { background: #111; color: #fff; }
