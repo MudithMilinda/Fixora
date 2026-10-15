@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 type ToastProps = {
   message: string
   tone: 'success' | 'error'
@@ -6,6 +8,11 @@ type ToastProps = {
 
 function Toast({ message, tone, onDismiss }: ToastProps) {
   const isSuccess = tone === 'success'
+
+  useEffect(() => {
+    const timer = window.setTimeout(onDismiss, isSuccess ? 4000 : 6000)
+    return () => window.clearTimeout(timer)
+  }, [isSuccess, message, onDismiss])
 
   return (
     <div className="fixed right-5 top-5 z-50 flex max-w-[calc(100vw-2.5rem)] items-center gap-3 rounded-2xl border border-[#e7e7e9] bg-white px-4 py-3.5 shadow-[0_16px_40px_rgba(23,23,25,0.16)]" role={isSuccess ? 'status' : 'alert'} aria-live="polite">

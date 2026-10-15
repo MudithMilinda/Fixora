@@ -52,10 +52,27 @@ function validateQuotation(body) {
     return { requestId: item.requestId, unitPriceCents: priceCents(item.unitPrice) };
   });
   return {
-    supplierId: body.supplierId, quotationNumber: text(body.quotationNumber, 100, true),
+    supplierId: body.supplierId,
+    // New quotations receive their number on the server. A legacy number is
+    // accepted only so existing records can still be read during upgrades.
+    quotationNumber: body.quotationNumber === undefined ? null : text(body.quotationNumber, 100, true),
     quotationDate, validUntil, currency: body.currency, notes: text(body.notes, 2000),
     items, ...validateAttachment(body.attachment),
   };
+}
+
+function quotationNumberPrefix(quotationDate) {
+  return `QT-${quotationDate.replaceAll('-', '')}-`;
+}
+
+function nextQuotationNumber(quotationDate, quotationNumbers) {
+  const prefix = quotationNumberPrefix(quotationDate);
+  const next = quotationNumbers.reduce((highest, value) => {
+    const match = typeof value === 'string' && value.match(new RegExp(`^${prefix}(\\d{3,})$`));
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0) + 1;
+  if (next > 999999) fail('Too many quotations were created for this date.');
+  return `${prefix}${String(next).padStart(3, '0')}`;
 }
 
 function buildQuotationItems(entries, requests, previousItems = []) {
@@ -85,4 +102,4 @@ function serializeQuotation(quote) {
   };
 }
 
-module.exports = { validateQuotation, buildQuotationItems, serializeQuotation };
+module.exports = { validateQuotation, buildQuotationItems, serializeQuotation, nextQuotationNumber };

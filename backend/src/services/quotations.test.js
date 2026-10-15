@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateQuotation, buildQuotationItems, serializeQuotation } = require('./quotations');
+const { validateQuotation, buildQuotationItems, serializeQuotation, nextQuotationNumber } = require('./quotations');
 
 const requestId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
 const supplierId = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
@@ -26,6 +26,12 @@ test('validates supplier quotes and calculates exact totals from server quantiti
   assert.equal(built.totalCents, 3705);
   assert.equal(built.items[0].quantity, 3);
   assert.equal(built.items[0].itemName, 'Display');
+});
+
+test('generates date-scoped sequential quotation numbers', () => {
+  assert.equal(nextQuotationNumber('2026-10-15', []), 'QT-20261015-001');
+  assert.equal(nextQuotationNumber('2026-10-15', ['QT-20261015-001', 'QT-20261015-009', 'QT-20261014-999', 'legacy-number']), 'QT-20261015-010');
+  assert.throws(() => nextQuotationNumber('2026-10-15', ['QT-20261015-999999']), { status: 400 });
 });
 
 test('rejects invalid prices, duplicate requests, invalid dates and currency', () => {
@@ -73,13 +79,16 @@ test('create scopes supplier and requests, persists atomically, ignores forged t
   const Quotation = require('../models/Quotation');
   const Supplier = require('../models/Supplier');
   const StockRequest = require('../models/StockRequest');
+  const Branch = require('../models/Branch');
   const transaction = { LOCK: { UPDATE: 'UPDATE' } };
   t.mock.method(Quotation.sequelize, 'transaction', async (callback) => callback(transaction));
   t.mock.method(Supplier, 'findOne', async ({ where }) => { assert.equal(where.companyId, 'company-a'); return { id: supplierId, name: 'Supplier A' }; });
   t.mock.method(StockRequest, 'findAll', async ({ where, transaction: tx }) => { assert.equal(where.branchId, 'branch-a'); assert.equal(tx, transaction); return [request]; });
-  t.mock.method(Quotation, 'create', async (values, { transaction: tx }) => { assert.equal(tx, transaction); assert.equal(values.companyId, 'company-a'); assert.equal(values.branchId, 'branch-a'); assert.equal(values.totalCents, 3705); return { id: 'quote-a', ...values }; });
+  t.mock.method(Branch, 'findOne', async ({ where, transaction: tx, lock }) => { assert.deepEqual(where, { id: 'branch-a', companyId: 'company-a' }); assert.equal(tx, transaction); assert.equal(lock, 'UPDATE'); return { id: 'branch-a' }; });
+  t.mock.method(Quotation, 'findAll', async ({ where, attributes, transaction: tx, lock }) => { assert.deepEqual(where, { companyId: 'company-a', branchId: 'branch-a', quotationDate: '2026-10-15' }); assert.deepEqual(attributes, ['quotationNumber']); assert.equal(tx, transaction); assert.equal(lock, 'UPDATE'); return [{ quotationNumber: 'QT-20261015-002' }]; });
+  t.mock.method(Quotation, 'create', async (values, { transaction: tx }) => { assert.equal(tx, transaction); assert.equal(values.companyId, 'company-a'); assert.equal(values.branchId, 'branch-a'); assert.equal(values.quotationNumber, 'QT-20261015-003'); assert.equal(values.totalCents, 3705); return { id: 'quote-a', ...values }; });
   const res = response();
-  await handler('post', '/')({ ...auth, body: { ...body, companyId: 'company-b', branchId: 'branch-b', totalCents: 1 } }, res, (error) => { throw error; });
+  await handler('post', '/')({ ...auth, body: { ...body, quotationNumber: undefined, companyId: 'company-b', branchId: 'branch-b', totalCents: 1 } }, res, (error) => { throw error; });
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.quotation.supplierName, 'Supplier A');
 });
@@ -88,9 +97,13 @@ test('rejects suppliers and requests outside the active company and branch', asy
   const Quotation = require('../models/Quotation');
   const Supplier = require('../models/Supplier');
   const StockRequest = require('../models/StockRequest');
-  t.mock.method(Quotation.sequelize, 'transaction', async (callback) => callback({}));
+  const Branch = require('../models/Branch');
+  const transaction = { LOCK: { UPDATE: 'UPDATE' } };
+  t.mock.method(Quotation.sequelize, 'transaction', async (callback) => callback(transaction));
   const supplier = t.mock.method(Supplier, 'findOne', async () => null);
   t.mock.method(StockRequest, 'findAll', async () => []);
+  t.mock.method(Branch, 'findOne', async () => ({ id: 'branch-a' }));
+  t.mock.method(Quotation, 'findAll', async () => []);
   const create = t.mock.method(Quotation, 'create', async () => assert.fail('Must not write'));
   const save = handler('post', '/');
   const res = response();
@@ -118,6 +131,20 @@ test('list, edit and attachment lookup are scoped to company and branch', async 
   assert.equal(res.statusCode, 404);
 });
 
+test('deleting a quotation is scoped to the active company and branch', async (t) => {
+  const Quotation = require('../models/Quotation');
+  const quote = { destroy: t.mock.fn(async () => {}) };
+  t.mock.method(Quotation, 'findOne', async ({ where }) => {
+    assert.deepEqual(where, { id: 'quote-a', companyId: 'company-a', branchId: 'branch-a' });
+    return quote;
+  });
+  const res = response();
+  await handler('delete', '/:id')({ ...auth, params: { id: 'quote-a' } }, res, (error) => { throw error; });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { success: true });
+  assert.equal(quote.destroy.mock.callCount(), 1);
+});
+
 test('middleware rejects absent or cross-company active branches', async (t) => {
   const Branch = require('../models/Branch');
   const router = require('../routes/quotations');
@@ -136,7 +163,7 @@ test('editing saves revised prices but retains original quantities and attachmen
   const StockRequest = require('../models/StockRequest');
   const transaction = { LOCK: { UPDATE: 'UPDATE' } };
   const existing = {
-    id: 'quote-a', supplierId, supplierName: 'Supplier A', attachmentName: 'original.pdf',
+    id: 'quote-a', supplierId, supplierName: 'Supplier A', quotationNumber: 'QT-20261015-001', attachmentName: 'original.pdf',
     ...buildQuotationItems(validateQuotation(body).items, [request]),
     async update(values, options) {
       assert.equal(options.transaction, transaction);
@@ -155,6 +182,7 @@ test('editing saves revised prices but retains original quantities and attachmen
   assert.equal(res.body.quotation.totalCents, 4650);
   assert.equal(res.body.quotation.attachmentName, 'original.pdf');
   assert.equal(res.body.quotation.items[0].quantity, 3);
+  assert.equal(res.body.quotation.quotationNumber, 'QT-20261015-001');
 });
 
 test('attachment download is forced as binary with no-store', async (t) => {

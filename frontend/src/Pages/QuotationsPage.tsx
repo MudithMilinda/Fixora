@@ -4,6 +4,9 @@ import Sidebar from "../Components/Sidebar";
 import Toast from "../Components/Toast";
 import api, { getApiError } from "../api/axios";
 import type { AuthUser } from "../types/auth";
+import type { CompanyProfile } from "../types/company";
+import { waitForDocumentImages } from "../utils/documentBranding";
+import { quotationPrintHtml } from "../utils/quotationPrint";
 
 type RequestItem = {
   id: string;
@@ -64,9 +67,14 @@ export default function QuotationsPage(props: Props) {
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
   const [search, setSearch] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
   const [mode, setMode] = useState<"list" | "compare">("list");
   const [compareId, setCompareId] = useState("");
   const [editor, setEditor] = useState<Quotation | "new" | null>(null);
+  const [deletingId, setDeletingId] = useState("");
+  const [isPrinting, setIsPrinting] = useState(false);
+  const printFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const printRequestRef = useRef<AbortController | null>(null);
   const [toast, setToast] = useState<{
     message: string;
     tone: "success" | "error";
@@ -95,12 +103,30 @@ export default function QuotationsPage(props: Props) {
       });
     return () => controller.abort();
   }, [reload]);
+  useEffect(() => () => {
+    printRequestRef.current?.abort();
+    printFrameRef.current?.remove();
+  }, []);
 
+  const quotedSuppliers = [...new Map(
+    quotations.map((quote) => [quote.supplierId, quote.supplierName]),
+  ).entries()].sort(([, first], [, second]) => first.localeCompare(second));
   const filtered = quotations.filter((quote) =>
+    (!supplierFilter || quote.supplierId === supplierFilter) &&
     `${quote.supplierName} ${quote.quotationNumber} ${quote.items.map((item) => item.itemName).join(" ")}`
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
+  const totalItems = filtered.reduce((total, quote) => total + quote.items.length, 0);
+  const totalQuantity = filtered.reduce(
+    (total, quote) => total + quote.items.reduce((quantity, item) => quantity + item.quantity, 0),
+    0,
+  );
+  const totalAmounts = [...filtered.reduce((totals, quote) => {
+    totals.set(quote.currency, (totals.get(quote.currency) || 0) + quote.totalCents);
+    return totals;
+  }, new Map<string, number>()).entries()]
+    .sort(([first], [second]) => first.localeCompare(second));
   const comparisonItems = [
     ...new Map(
       quotations.flatMap((quote) =>
@@ -120,6 +146,92 @@ export default function QuotationsPage(props: Props) {
         a.item.unitPriceCents - b.item.unitPriceCents,
     );
 
+  async function deleteQuotation(quote: Quotation) {
+    if (
+      !window.confirm(
+        `Delete quotation ${quote.quotationNumber}? This cannot be undone.`,
+      )
+    )
+      return;
+    setDeletingId(quote.id);
+    setToast(null);
+    try {
+      await api.delete(`/quotations/${quote.id}`);
+      setQuotations((current) =>
+        current.filter((currentQuote) => currentQuote.id !== quote.id),
+      );
+      setEditor((current) =>
+        current !== "new" && current?.id === quote.id ? null : current,
+      );
+      setToast({ message: "Supplier quotation deleted.", tone: "success" });
+    } catch (reason) {
+      setToast({
+        message: getApiError(reason, "Unable to delete quotation."),
+        tone: "error",
+      });
+    } finally {
+      setDeletingId("");
+    }
+  }
+
+  async function printQuotations() {
+    if (!filtered.length || printRequestRef.current) return;
+    const controller = new AbortController();
+    printRequestRef.current = controller;
+    setIsPrinting(true);
+    try {
+      const { data } = await api.get<{ company: CompanyProfile }>("/company-settings", {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      const supplierName = quotedSuppliers.find(([id]) => id === supplierFilter)?.[1];
+      const filters = [
+        supplierName ? `Supplier: ${supplierName}` : "All suppliers",
+        search.trim() ? `Search: ${search.trim()}` : "",
+      ].filter(Boolean).join(" · ");
+      printFrameRef.current?.remove();
+      const frame = document.createElement("iframe");
+      frame.title = "Supplier quotations print document";
+      frame.setAttribute("aria-hidden", "true");
+      frame.tabIndex = -1;
+      frame.style.cssText = "position:fixed;left:-10000px;top:0;width:1024px;height:768px;border:0;pointer-events:none";
+      document.body.append(frame);
+      printFrameRef.current = frame;
+      const reportWindow = frame.contentWindow;
+      if (!reportWindow) throw new Error("Unable to prepare print document.");
+      reportWindow.document.write(quotationPrintHtml({
+        company: data.company,
+        quotations: filtered,
+        preparedBy: props.user.fullName,
+        filterLabel: filters,
+      }));
+      reportWindow.document.close();
+      await waitForDocumentImages(reportWindow.document);
+      if (!controller.signal.aborted && frame.isConnected) {
+        reportWindow.addEventListener("afterprint", () => {
+          window.setTimeout(() => {
+            frame.remove();
+            if (printFrameRef.current === frame) printFrameRef.current = null;
+          }, 0);
+        }, { once: true });
+        reportWindow.focus();
+        reportWindow.print();
+      }
+    } catch (reason) {
+      printFrameRef.current?.remove();
+      printFrameRef.current = null;
+      if (!controller.signal.aborted) {
+        setToast({
+          message: getApiError(reason, "Unable to prepare quotations for printing. Please try again."),
+          tone: "error",
+        });
+      }
+    } finally {
+      if (printRequestRef.current === controller) printRequestRef.current = null;
+      if (!controller.signal.aborted) setIsPrinting(false);
+    }
+  }
+
   return (
     <div className="flex h-dvh overflow-hidden bg-[#f5f5f7] font-sans text-[#262b3a] max-[1100px]:h-auto max-[1100px]:flex-col max-[1100px]:overflow-y-auto">
       <Sidebar {...props} activePage="quotations" />
@@ -134,13 +246,24 @@ export default function QuotationsPage(props: Props) {
               requests.
             </p>
           </div>
-          <button
-            className="inline-flex min-h-[42px] items-center justify-center whitespace-nowrap rounded-[11px] border border-[#171719] bg-[#171719] px-4 py-2.5 text-[13px] font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={loading || !!error}
-            onClick={() => setEditor("new")}
-          >
-            + Add quotation
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="inline-flex min-h-[42px] items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border border-[#e2e3e8] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#414754] transition hover:bg-[#f7f7f8] disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              disabled={loading || !!error || !filtered.length || isPrinting}
+              onClick={() => void printQuotations()}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6zM18 12h.01" /></svg>
+              {isPrinting ? "Preparing print…" : "Print"}
+            </button>
+            <button
+              className="inline-flex min-h-[42px] items-center justify-center whitespace-nowrap rounded-[11px] border border-[#171719] bg-[#171719] px-4 py-2.5 text-[13px] font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={loading || !!error}
+              onClick={() => setEditor("new")}
+            >
+              + Add quotation
+            </button>
+          </div>
         </header>
         {error ? (
           <div className="my-4 rounded-[10px] border border-[#f2d4cf] bg-[#fff2f0] p-3.5 text-[13px] text-[#a13a32]" role="alert">
@@ -193,13 +316,36 @@ export default function QuotationsPage(props: Props) {
                   </button>
                 </div>
                 {mode === "list" && (
-                  <input
-                    className="min-h-[42px] w-full max-w-[310px] rounded-[10px] border border-[#e2e3e8] bg-white px-3 py-2.5 text-[13px] text-[#414754] outline-none focus:border-[#ad6338] focus:ring-2 focus:ring-[#ad6338]/10"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search supplier, quotation or item…"
-                    aria-label="Search quotations"
-                  />
+                  <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto sm:flex-nowrap">
+                    <AppSelect
+                      className="min-w-[210px] flex-1 sm:w-[230px] sm:flex-none"
+                      searchable={quotedSuppliers.length > 6}
+                      aria-label="Filter quotations by supplier"
+                      value={supplierFilter}
+                      onChange={(event) => setSupplierFilter(event.target.value)}
+                    >
+                      <option value="">All suppliers</option>
+                      {quotedSuppliers.map(([id, name]) => (
+                        <option key={id} value={id}>{name}</option>
+                      ))}
+                    </AppSelect>
+                    <input
+                      className="min-h-[42px] min-w-[220px] flex-1 rounded-[10px] border border-[#e2e3e8] bg-white px-3 py-2.5 text-[13px] text-[#414754] outline-none focus:border-[#ad6338] focus:ring-2 focus:ring-[#ad6338]/10 sm:w-[310px] sm:flex-none"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search supplier, quotation or item…"
+                      aria-label="Search quotations"
+                    />
+                    {(supplierFilter || search) && (
+                      <button
+                        className="min-h-[42px] rounded-[10px] border border-[#e2e3e8] bg-white px-3 py-2 text-xs font-semibold text-[#515867] hover:bg-[#f7f7f8]"
+                        type="button"
+                        onClick={() => { setSupplierFilter(""); setSearch(""); }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               {mode === "list" ? (
@@ -264,12 +410,35 @@ export default function QuotationsPage(props: Props) {
                               </strong>
                             </td>
                             <td className="text-right tabular-nums">
+                              <div className="flex justify-end gap-2 whitespace-nowrap">
                               <button
-                                className="inline-flex min-h-[34px] items-center justify-center whitespace-nowrap rounded-[11px] border border-[#e2e3e8] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#414754] hover:brightness-95"
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#dfe1e6] bg-white text-[#646b7a] transition hover:border-[#bfc4cd] hover:bg-[#f7f7f8] hover:text-[#262b3a]"
+                                type="button"
+                                aria-label={`Edit ${quote.quotationNumber}`}
+                                title="Edit quotation"
                                 onClick={() => setEditor(quote)}
                               >
-                                View / edit
+                                <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+                                  <path d="m15.5 5.5 3 3M4 20l4.5-1L19.3 8.2a2.12 2.12 0 0 0-3-3L5.5 16z" />
+                                </svg>
                               </button>
+                              <button
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#dfe1e6] bg-white text-[#646b7a] transition hover:border-[#d7aaa6] hover:bg-[#fff5f4] hover:text-[#b64a42] disabled:cursor-not-allowed disabled:opacity-50"
+                                type="button"
+                                aria-label={`Delete ${quote.quotationNumber}`}
+                                title="Delete quotation"
+                                disabled={deletingId === quote.id}
+                                onClick={() => void deleteQuotation(quote)}
+                              >
+                                {deletingId === quote.id ? (
+                                  <span className="text-xs" aria-hidden="true">…</span>
+                                ) : (
+                                  <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+                                    <path d="M4 7h16M10 11v6m4-6v6M5.5 7l1 13h11l1-13M9 7V4h6v3" />
+                                  </svg>
+                                )}
+                              </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -290,6 +459,19 @@ export default function QuotationsPage(props: Props) {
                         </tr>
                       )}
                     </tbody>
+                    {!loading && filtered.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t border-[#e3e5ea] bg-[#fafafb]">
+                          <td colSpan={7} className="px-0 py-4">
+                            <div className="flex flex-wrap justify-end gap-x-8 gap-y-2 text-[12px] text-[#747a89]">
+                              <span>Total items <strong className="ml-2 text-[#262b3a]">{totalItems}</strong></span>
+                              <span>Total quantity <strong className="ml-2 text-[#262b3a]">{totalQuantity}</strong></span>
+                              <span>Total amount <strong className="ml-2 whitespace-nowrap text-[#262b3a]">{totalAmounts.map(([currency, amount]) => money(amount, currency)).join(" · ")}</strong></span>
+                            </div>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               ) : (
@@ -391,6 +573,7 @@ export default function QuotationsPage(props: Props) {
             setEditor(null);
             setToast({ message: "Supplier quotation saved.", tone: "success" });
           }}
+          onDelete={deleteQuotation}
         />
       )}
     </div>
@@ -403,16 +586,17 @@ function QuotationEditor({
   requests,
   onClose,
   onSaved,
+  onDelete,
 }: {
   existing: Quotation | null;
   suppliers: Supplier[];
   requests: RequestItem[];
   onClose: () => void;
   onSaved: (quote: Quotation) => void;
+  onDelete: (quote: Quotation) => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [supplierId, setSupplierId] = useState(existing?.supplierId || "");
-  const [number, setNumber] = useState(existing?.quotationNumber || "");
   const [date, setDate] = useState(existing?.quotationDate || today());
   const [validUntil, setValidUntil] = useState(existing?.validUntil || "");
   const [currency, setCurrency] = useState(existing?.currency || "LKR");
@@ -547,7 +731,6 @@ function QuotationEditor({
     try {
       const payload = {
         supplierId,
-        quotationNumber: number,
         quotationDate: date,
         validUntil: validUntil || null,
         currency,
@@ -645,17 +828,10 @@ function QuotationEditor({
                     ))}
                 </AppSelect>
               </label>
-              <label className="flex flex-col gap-2 text-xs font-semibold text-[#515867]">
+              <div className="flex flex-col gap-2 text-xs font-semibold text-[#515867]">
                 Quotation number
-                <input
-                  className="min-h-[42px] w-full min-w-0 rounded-[10px] border border-[#e2e3e8] bg-white px-3 py-2.5 text-[13px] text-[#414754] outline-none focus:border-[#ad6338] focus:ring-2 focus:ring-[#ad6338]/10"
-                  required
-                  maxLength={100}
-                  value={number}
-                  onChange={(event) => setNumber(event.target.value)}
-                  placeholder="e.g. QT-2026-001"
-                />
-              </label>
+                <div className="min-h-[42px] rounded-[10px] border border-dashed border-[#dfe1e6] bg-[#f8f8fa] px-3 py-2.5 text-[13px] font-normal text-[#747a89]">{existing?.quotationNumber || 'Auto-generated when saved'}</div>
+              </div>
               <label className="flex flex-col gap-2 text-xs font-semibold text-[#515867]">
                 Quotation date
                 <input
@@ -892,9 +1068,21 @@ function QuotationEditor({
           </fieldset>
         </div>
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-t border-[#eceef2] bg-[#fafafb] px-7 py-[18px] max-sm:p-4">
-          <span className="text-xs text-[#747a89]">
-            {lines.length} items · {money(total, currency)}
-          </span>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-[#747a89]">
+              {lines.length} items · {money(total, currency)}
+            </span>
+            {existing && (
+              <button
+                className="text-xs font-semibold text-[#a13a32] underline decoration-current underline-offset-[3px] disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+                disabled={saving}
+                onClick={() => void onDelete(existing)}
+              >
+                Delete quotation
+              </button>
+            )}
+          </div>
           <div className="flex gap-2.5">
             <button
               className="inline-flex min-h-[42px] items-center justify-center whitespace-nowrap rounded-[11px] border border-[#e2e3e8] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#414754] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"

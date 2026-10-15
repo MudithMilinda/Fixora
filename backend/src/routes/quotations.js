@@ -4,7 +4,7 @@ const Quotation = require('../models/Quotation');
 const Supplier = require('../models/Supplier');
 const StockRequest = require('../models/StockRequest');
 const Branch = require('../models/Branch');
-const { validateQuotation, buildQuotationItems, serializeQuotation } = require('../services/quotations');
+const { validateQuotation, buildQuotationItems, serializeQuotation, nextQuotationNumber } = require('../services/quotations');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -52,7 +52,15 @@ async function save(req, res, next) {
       const supplier = await Supplier.findOne({ where: { id: values.supplierId, companyId: req.user.companyId, isActive: true }, transaction });
       if (!supplier && existing?.supplierId !== values.supplierId) { const error = new Error('Select an active supplier from your company.'); error.status = 400; throw error; }
       const requests = await StockRequest.findAll({ where: { id: values.items.map((item) => item.requestId), branchId: req.branchId }, transaction });
-      const payload = { ...values, ...buildQuotationItems(values.items, requests, existing?.items || []), ...scope(req), supplierName: supplier?.name || existing.supplierName };
+      // Lock the branch row while choosing a number. This serializes new
+      // quotations per branch/date without trusting browser-generated values.
+      let quotationNumber = existing?.quotationNumber;
+      if (!existing) {
+        await Branch.findOne({ where: { id: req.branchId, companyId: req.user.companyId }, transaction, lock: transaction.LOCK.UPDATE });
+        const sameDay = await Quotation.findAll({ where: { ...scope(req), quotationDate: values.quotationDate }, attributes: ['quotationNumber'], transaction, lock: transaction.LOCK.UPDATE });
+        quotationNumber = nextQuotationNumber(values.quotationDate, sameDay.map((quote) => quote.quotationNumber));
+      }
+      const payload = { ...values, quotationNumber, ...buildQuotationItems(values.items, requests, existing?.items || []), ...scope(req), supplierName: supplier?.name || existing.supplierName };
       if (existing) return existing.update(payload, { transaction });
       return Quotation.create({ ...payload, createdBy: req.user.id }, { transaction });
     });
@@ -64,5 +72,18 @@ async function save(req, res, next) {
 }
 router.post('/', save);
 router.put('/:id', save);
+
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const quote = await Quotation.findOne({
+      where: { id: req.params.id, ...scope(req) },
+    });
+    if (!quote) {
+      return res.status(404).json({ success: false, message: 'Quotation not found.' });
+    }
+    await quote.destroy();
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
 
 module.exports = router;
