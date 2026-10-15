@@ -14,6 +14,7 @@ const stockRoutes = require("./routes/stocks");
 const stockRequestRoutes = require("./routes/stockRequests");
 const branchRoutes = require("./routes/branches");
 const supplierRoutes = require("./routes/suppliers");
+const companySettingsRoutes = require("./routes/companySettings");
 require("./models/User");
 require("./models/RepairJob");
 require("./models/Item");
@@ -45,6 +46,7 @@ app.use(
   }),
 );
 
+app.use('/api/company-settings', express.json({ limit: '2mb' }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
@@ -64,6 +66,7 @@ app.use("/api/stocks", stockRoutes);
 app.use("/api/stock-requests", stockRequestRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/company-settings", companySettingsRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 

@@ -1,0 +1,67 @@
+.company-settings-shell { display: flex; height: 100dvh; width: 100%; overflow: hidden; background: #f5f5f7; color: #262b3a; font-family: inherit; }
+.company-settings-main { min-width: 0; flex: 1; padding: 28px 28px 40px; overflow-y: auto; }
+.company-settings-page-heading { margin-bottom: 24px; }
+.company-settings-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #7a8090; }
+.company-settings-page-heading h1 { margin: 8px 0 6px; font-size: 30px; font-weight: 700; letter-spacing: -.03em; }
+.company-settings-page-heading > p:last-child { color: #747a89; font-size: 13px; }
+.company-settings-card { max-width: 1200px; margin: 0 auto; overflow: hidden; border: 1px solid #e6e7eb; border-radius: 18px; background: #fff; box-shadow: 0 2px 5px #262b3a05; }
+.company-settings-cover { height: 136px; position: relative; overflow: hidden; background: linear-gradient(112deg, #ecebed, #f2eeea 64%, #e5e7eb); }
+.company-settings-cover::after { content: ''; position: absolute; right: -40px; top: -60px; width: 400px; height: 240px; transform: rotate(-22deg); background-image: linear-gradient(#ffffff90 1px, transparent 1px), linear-gradient(90deg, #ffffff90 1px, transparent 1px); background-size: 28px 28px; mask-image: linear-gradient(to left, black, transparent); }
+.company-settings-cover > span { position: absolute; right: 28px; top: 24px; color: #99959b; font-size: 9px; letter-spacing: .2em; }
+.company-settings-identity { position: relative; display: flex; align-items: center; gap: 20px; padding: 0 28px 28px; margin-top: -32px; }
+.company-settings-logo { display: grid; place-items: center; width: 76px; height: 76px; flex-shrink: 0; border: 4px solid #fff; border-radius: 50%; background: #22252d; color: #fff; font-size: 24px; font-weight: 600; box-shadow: 0 3px 8px #27272a18; overflow: hidden; }
+.company-settings-logo.is-large { width: 104px; height: 104px; font-size: 34px; }
+.company-settings-logo img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.company-settings-identity > div:nth-child(2) { padding-top: 28px; flex: 1; min-width: 0; }
+.company-settings-identity h2 { font-size: 24px; font-weight: 700; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.company-settings-identity p { margin-top: 5px; color: #7a8090; font-size: 13px; overflow-wrap: anywhere; }
+.company-settings-code { display: inline-block; margin-left: 8px; padding: 3px 7px; border-radius: 5px; background: #f4f4f6; font-size: 10px; font-weight: 600; color: #797f89; }
+.company-settings-form { padding: 0 28px; }
+.company-settings-form-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 8px 0 22px; border-bottom: 1px solid #eceef1; }
+.company-settings-form-heading h2 { font-size: 16px; font-weight: 600; }
+.company-settings-form-heading p { margin-top: 4px; font-size: 12px; color: #747a89; }
+.company-settings-primary { min-height: 38px; padding: 0 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.company-settings-primary { background: #171719; color: #fff; border: 1px solid #171719; }
+.company-settings-shell button:disabled { cursor: not-allowed; opacity: .5; }
+.company-settings-form fieldset { min-width: 0; padding: 0; border: 0; }
+.company-settings-row { display: grid; grid-template-columns: minmax(170px, 30%) minmax(0, 1fr); gap: 28px; padding: 24px 0; border-bottom: 1px solid #eceef1; }
+.company-settings-row-label h3 { font-size: 13px; font-weight: 600; }
+.company-settings-row-label p { margin-top: 5px; max-width: 240px; color: #7a8090; font-size: 12px; line-height: 1.6; }
+.company-settings-fields { display: grid; gap: 15px; max-width: 580px; }
+.company-settings-fields label { display: block; color: #4b5260; font-size: 12px; font-weight: 500; }
+.company-settings-fields label span { color: #8a909b; font-weight: 400; }
+.company-settings-fields input, .company-settings-fields textarea { box-sizing: border-box; display: block; width: 100%; padding: 10px 12px; margin-top: 7px; border: 1px solid #dfe1e6; border-radius: 8px; background: #fff; color: #303540; font-size: 13px; font-weight: 400; }
+.company-settings-fields input { height: 40px; }
+.company-settings-fields textarea { resize: vertical; min-height: 80px; }
+.company-settings-main :focus-visible { outline: 2px solid #ad6338; outline-offset: 3px; }
+.company-settings-contact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.company-settings-logo-controls { display: flex; align-items: flex-start; gap: 22px; max-width: 580px; }
+.company-settings-remove { display: block; margin-top: 10px; background: none; color: #a44d42; font-size: 11px; cursor: pointer; }
+.company-settings-upload { flex: 1; min-width: 0; border: 1px dashed #dfe1e6; border-radius: 10px; background: #fdfdfd; }
+.company-settings-upload.is-dragging { border-color: #ad6338; background: #fff8f2; }
+.company-settings-upload button { display: flex; width: 100%; flex-direction: column; align-items: center; gap: 10px; padding: 18px 14px; color: #747a89; cursor: pointer; font-size: 12px; }
+.company-settings-upload svg { padding: 7px; box-sizing: content-box; background: #f4f4f6; border-radius: 50%; }
+.company-settings-upload strong { color: #303540; font-weight: 600; }
+.company-settings-upload small { font-size: 10px; }
+.company-settings-check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.company-settings-check input { margin-top: 3px; width: 15px; height: 15px; accent-color: #171719; }
+.company-settings-check strong { display: block; font-size: 13px; font-weight: 500; }
+.company-settings-check small { display: block; margin-top: 5px; font-size: 12px; color: #7a8090; line-height: 1.6; }
+.company-settings-bottom { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px 0; }
+.company-settings-bottom span { font-size: 12px; color: #7a8090; }
+.company-settings-state { padding: 48px 24px; text-align: center; border: 1px solid #e6e7eb; border-radius: 16px; background: #fff; font-size: 14px; color: #747a89; }
+.company-settings-state button { margin-top: 16px; color: #262b3a; text-decoration: underline; cursor: pointer; }
+@media (max-width: 1100px) {
+  .company-settings-shell { flex-direction: column; overflow-y: auto; }
+  .company-settings-main { flex: none; overflow: visible; padding: 20px; }
+}
+@media (max-width: 650px) {
+  .company-settings-main { padding: 16px; }
+  .company-settings-row { grid-template-columns: 1fr; gap: 16px; }
+  .company-settings-identity { flex-wrap: wrap; gap: 12px; padding: 0 20px 24px; }
+  .company-settings-identity h2 { font-size: 20px; }
+  .company-settings-form { padding: 0 20px; }
+  .company-settings-form-heading { flex-wrap: wrap; }
+  .company-settings-contact-grid { grid-template-columns: 1fr; }
+  .company-settings-logo-controls { gap: 14px; }
+}

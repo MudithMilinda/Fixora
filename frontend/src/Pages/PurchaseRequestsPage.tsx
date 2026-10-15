@@ -1,8 +1,11 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Sidebar from "../Components/Sidebar";
 import AddPurchaseRequestModal from "../Components/AddPurchaseRequestModal";
 import Toast from "../Components/Toast";
 import type { AuthUser } from "../types/auth";
+import type { CompanyProfile } from "../types/company";
+import { waitForDocumentImages } from "../utils/documentBranding";
+import { purchaseRequestPrintHtml } from "../utils/purchaseRequestPrint";
 import api, { getApiError } from "../api/axios";
 import "./PurchaseRequestsPage.css";
 
@@ -36,6 +39,9 @@ export default function PurchaseRequestsPage({
   const [items, setItems] = useState<Item[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const printFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const printRequestRef = useRef<AbortController | null>(null);
   const [editing, setEditing] = useState<PurchaseRequest | null>(null);
   const [deleting, setDeleting] = useState<PurchaseRequest | null>(null);
   const [toast, setToast] = useState<{
@@ -67,6 +73,10 @@ export default function PurchaseRequestsPage({
   }
   useEffect(() => {
     void load();
+    return () => {
+      printRequestRef.current?.abort();
+      printFrameRef.current?.remove();
+    };
   }, []);
 
   async function saveRequest(event: FormEvent<HTMLFormElement>) {
@@ -103,31 +113,49 @@ export default function PurchaseRequestsPage({
     }
   }
 
-  function generateReport() {
-    if (!requests.length) return;
-    const reportWindow = window.open("", "_blank", "width=1000,height=720");
-    if (!reportWindow) {
-      setToast({
-        message: "Allow pop-ups to generate the report.",
-        tone: "error",
-      });
-      return;
-    }
-    const reportNumber = `PR-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}`;
-    const rows = requests
-      .map(
-        (request) =>
-          `<tr><td><strong>${escapeHtml(request.itemName)}</strong>${request.sku ? `<span>${escapeHtml(request.sku)}</span>` : ""}</td><td class="numeric">${request.quantity}</td><td>${escapeHtml(request.note || "—")}</td><td>${new Date(request.createdAt).toLocaleDateString()}</td><td>${escapeHtml(request.status)}</td></tr>`,
-      )
-      .join("");
-    reportWindow.document.write(
-      `<!doctype html><html><head><title>Purchase requests report</title><style>body{margin:44px auto;max-width:1040px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#273548}.eyebrow{color:#dc7a42;font-size:11px;font-weight:800;letter-spacing:.17em;text-transform:uppercase}.title{margin:8px 0 34px;font-size:34px;line-height:1.12;letter-spacing:-.03em}.info{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-bottom:24px}.meta{width:100%;border-collapse:collapse;font-size:13px}.meta td{border:1px solid #dde1e6;padding:7px 9px}.meta td:first-child{width:42%;background:#f7f8f9;font-weight:700;color:#506074}.meta tr:nth-child(even) td{background:#f1f3f5}.meta tr:nth-child(even) td:first-child{background:#e9edf1}.section{margin:20px 0 10px;color:#506074;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:13px}.requests th{background:#314359;color:#fff;padding:10px 9px;text-align:left;font-size:11px;font-weight:700}.requests td{border:1px solid #dfe3e7;padding:10px 9px;vertical-align:top}.requests tr:nth-child(even) td{background:#f2f4f6}.requests strong{font-weight:700}.requests span{display:block;margin-top:4px;color:#6d7887;font-size:11px}.numeric{text-align:right}footer{margin-top:20px;color:#747f8d;font-size:11px}@media print{body{margin:20px;max-width:none}.title{font-size:30px}}</style></head><body><div class="eyebrow">Fixora · Procurement</div><h1 class="title">Purchase Requests<br>Report</h1><div class="info"><table class="meta"><tr><td>Report no.</td><td>${reportNumber}</td></tr><tr><td>Date</td><td>${new Date().toLocaleDateString()}</td></tr><tr><td>Total requests</td><td>${requests.length}</td></tr></table><table class="meta"><tr><td>Department</td><td>Procurement</td></tr><tr><td>Total quantity</td><td>${totalQuantity}</td></tr><tr><td>Prepared by</td><td>Fixora system</td></tr></table></div><div class="section">Purchase request details</div><table class="requests"><thead><tr><th>Item</th><th>Qty</th><th>Note</th><th>Created</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table><footer>Generated ${new Date().toLocaleString()} · Fixora Procurement</footer></body></html>`,
-    );
-    reportWindow.document.close();
-    window.setTimeout(() => {
+  async function printPurchaseRequests() {
+    if (!requests.length || printRequestRef.current) return;
+    const controller = new AbortController();
+    printRequestRef.current = controller;
+    setIsPrinting(true);
+    try {
+      const { data } = await api.get<{ company: CompanyProfile }>("/company-settings", { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      const company = data.company;
+      // Render a separate print document inside this tab, without a popup.
+      printFrameRef.current?.remove();
+      const frame = document.createElement("iframe");
+      frame.title = "Purchase requests print document";
+      frame.setAttribute("aria-hidden", "true");
+      frame.tabIndex = -1;
+      frame.style.cssText = "position:fixed;left:-10000px;top:0;width:1024px;height:768px;border:0;pointer-events:none";
+      document.body.append(frame);
+      printFrameRef.current = frame;
+      const reportWindow = frame.contentWindow;
+      if (!reportWindow) throw new Error("Unable to prepare print document.");
+      reportWindow.document.write(purchaseRequestPrintHtml({ company, requests, preparedBy: user.fullName }));
+      reportWindow.document.close();
+    await waitForDocumentImages(reportWindow.document);
+    if (!controller.signal.aborted && frame.isConnected) {
+      reportWindow.addEventListener("afterprint", () => {
+        window.setTimeout(() => {
+          frame.remove();
+          if (printFrameRef.current === frame) printFrameRef.current = null;
+        }, 0);
+      }, { once: true });
       reportWindow.focus();
       reportWindow.print();
-    }, 200);
+    }
+    } catch (error) {
+      printFrameRef.current?.remove();
+      printFrameRef.current = null;
+      if (!controller.signal.aborted) {
+        setToast({ message: getApiError(error, "Unable to prepare purchase requests for printing. Please try again."), tone: "error" });
+      }
+    } finally {
+      if (printRequestRef.current === controller) printRequestRef.current = null;
+      if (!controller.signal.aborted) setIsPrinting(false);
+    }
   }
 
   return (
@@ -157,10 +185,15 @@ export default function PurchaseRequestsPage({
             <button
               className="h-11 rounded-xl bg-[#171719] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
-              disabled={!requests.length}
-              onClick={generateReport}
+              disabled={!requests.length || isPrinting}
+              onClick={() => void printPurchaseRequests()}
+              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
             >
-              Generate report
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <path d="M6 14h12v7H6zM18 12h.01" />
+              </svg>
+              {isPrinting ? "Preparing print…" : "Print"}
             </button>
             <button
               className="h-11 rounded-xl bg-[#171719] px-4 text-sm font-semibold text-white"
@@ -414,14 +447,5 @@ function IconButton({
         {children}
       </svg>
     </button>
-  );
-}
-function escapeHtml(value: string) {
-  return value.replace(
-    /[&<>'"]/g,
-    (character) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[
-        character
-      ] || character,
   );
 }

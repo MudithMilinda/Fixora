@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Sidebar from "../Components/Sidebar";
+import ReceiptModal from "../Components/RepairReceiptModal";
 import Toast from "../Components/Toast";
 import type { AuthUser } from "../types/auth";
 import type { RepairJob } from "./RepairJobsPage";
@@ -238,10 +239,5 @@ function RepairHistoryPage({
   );
 }
 
-function ReceiptModal({ job, onClose }: { job: RepairJob; onClose: () => void }) {
-  const parts = job.parts || [];
-  const total = parts.reduce((sum, part) => sum + part.total, 0);
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101012]/45 p-4"><section className="w-full max-w-lg rounded-[22px] border border-[#e7e7e9] bg-[#fbfbfc] p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#777e8e]">Repair receipt</p><h2 className="mt-2 text-xl font-bold text-[#252932]">{job.jobNumber}</h2><p className="mt-1 text-sm text-[#747a89]">{job.customerName} · {job.assetName}</p></div><button className="grid h-8 w-8 place-items-center rounded-lg text-[#767c89] hover:bg-[#eeeeef]" type="button" onClick={onClose}>×</button></div><div className="mt-6 rounded-xl border border-[#e7e7e9] bg-white p-4"><p className="text-xs font-semibold text-[#555b68]">Assigned parts</p>{parts.length ? <div className="mt-3 divide-y divide-[#f0f1f4]">{parts.map(part => <div className="flex justify-between py-2 text-sm" key={part.stockId}><span>{part.name} × {part.quantity}</span><span className="font-semibold">Rs. {part.total.toFixed(2)}</span></div>)}</div> : <p className="mt-3 text-sm text-[#7a8090]">No parts assigned.</p>}<div className="mt-3 flex justify-between border-t border-[#eceef1] pt-3 text-sm font-bold"><span>Parts total</span><span>Rs. {total.toFixed(2)}</span></div></div><div className="mt-6 flex justify-end gap-3"><button className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[#555b68] hover:bg-[#f0f0f2]" type="button" onClick={onClose}>Close</button><button className="rounded-xl bg-[#171719] px-4 py-2.5 text-xs font-semibold text-white" type="button" onClick={() => window.print()}>Print receipt</button></div></section></div>;
-}
 
 export default RepairHistoryPage;
