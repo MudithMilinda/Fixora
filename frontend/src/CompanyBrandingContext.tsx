@@ -32,6 +32,34 @@ export function CompanyBrandingProvider({ companyId, children }: { companyId?: s
     return () => controller.abort();
   }, [companyId]);
 
+  useEffect(() => {
+    // Keep the browser tab identity in sync with the saved company logo.
+    // The logo is stored as a validated image data URL, which browsers can
+    // also use directly as a favicon.
+    let favicon = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+    if (!favicon) {
+      favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      document.head.append(favicon);
+    }
+    const logo = company?.logo;
+    favicon.href = logo || '/favicon.svg';
+    favicon.type = logo?.startsWith('data:image/png') ? 'image/png'
+      : logo?.startsWith('data:image/jpeg') ? 'image/jpeg'
+        : logo?.startsWith('data:image/webp') ? 'image/webp'
+          : 'image/svg+xml';
+  }, [company?.logo]);
+
+  useEffect(() => {
+    const name = company?.name?.trim() || 'Fixora';
+    const description = 'Repair & Inventory Management';
+    document.title = `${name} | ${description}`;
+    document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute(
+      'content',
+      `${name} ${description.toLowerCase()} system`,
+    );
+  }, [company?.name]);
+
   return <CompanyBrandingContext.Provider value={{ company: company?.id === companyId ? company : null, updateCompany }}>{children}</CompanyBrandingContext.Provider>;
 }
 

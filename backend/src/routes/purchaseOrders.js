@@ -33,10 +33,18 @@ router.patch('/:id/receive', async (req, res, next) => {
       for (const item of record.items) {
         const sellingPrice = Number(prices.get(item.requestId));
         if (!Number.isFinite(sellingPrice) || sellingPrice < 0 || sellingPrice > 99999999.99) { const error = new Error('Enter valid selling prices.'); error.status = 400; throw error; }
-        const stock = await Stock.findOne({ where: { branchId: req.branchId, itemId: item.itemId }, transaction, lock: transaction.LOCK.UPDATE });
-        const updates = { quantity: (stock?.quantity || 0) + Number(item.quantity), costPrice: item.unitPriceCents / 100, sellingPrice };
-        if (stock) await stock.update(updates, { transaction });
-        else await Stock.create({ itemId: item.itemId, branchId: req.branchId, name: item.itemName, sku: item.sku, ...updates }, { transaction });
+        // Each delivery is a distinct stock batch. Do not combine it with an
+        // existing item: that would overwrite the previous batch's cost and
+        // selling price and make the stock store pricing inaccurate.
+        await Stock.create({
+          itemId: item.itemId,
+          branchId: req.branchId,
+          name: item.itemName,
+          sku: item.sku,
+          quantity: Number(item.quantity),
+          costPrice: item.unitPriceCents / 100,
+          sellingPrice,
+        }, { transaction });
       }
       await record.update({ status: 'Received' }, { transaction });
       return record;
