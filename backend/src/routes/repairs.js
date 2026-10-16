@@ -7,6 +7,17 @@ const { requireAuth } = require("../middleware/requireAuth");
 const router = express.Router();
 router.use(requireAuth);
 
+function readParts(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function serialize(job) {
   return {
     id: job.id,
@@ -21,7 +32,7 @@ function serialize(job) {
     technician: job.technician || "Unassigned",
     promisedDate: job.promisedDate,
     priority: job.priority,
-    parts: Array.isArray(job.parts) ? job.parts : [],
+    parts: readParts(job.parts),
     createdAt: job.createdAt,
   };
 }
@@ -146,7 +157,9 @@ router.patch("/:id", async (req, res, next) => {
     }
     if (promisedDate && Number.isNaN(promisedDate.getTime())) return res.status(400).json({ success: false, message: "Enter a valid promised date." });
 
-    const parts = Array.isArray(job.parts) ? [...job.parts] : [];
+    // Some MySQL/MariaDB drivers return JSON columns as a string. Parse it
+    // before appending so editing a repair never hides or overwrites saved parts.
+    const parts = [...readParts(job.parts)];
     for (const requestedPart of requestedParts) { const quantity = Number(requestedPart.quantity); const stock = await Stock.findOne({ where: { id: requestedPart.stockId, branchId: req.branchId } }); if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." }); await stock.update({ quantity: stock.quantity - quantity }); parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), total: Number(stock.sellingPrice) * quantity }); }
     await job.update({ customerName, assetName, issue, assetType, priority, status, promisedDate, parts, customerPhone: typeof req.body.customerPhone === "string" ? req.body.customerPhone.trim() || null : job.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === "string" ? req.body.assetIdentifier.trim() || null : job.assetIdentifier, technician: typeof req.body.technician === "string" ? req.body.technician.trim() || null : job.technician });
     return res.status(200).json({ success: true, message: "Repair job updated.", job: serialize(job) });

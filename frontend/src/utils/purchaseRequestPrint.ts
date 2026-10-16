@@ -18,16 +18,17 @@ export function purchaseRequestPrintHtml({ company, requests, preparedBy, date =
   }).format(value);
   const dateKey = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
   const reference = `PR-${dateKey}`;
-  const logo = company.reportBranding && company.logo && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(company.logo)
+  const initials = company.name.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'F';
+  const logo = company.logo && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(company.logo)
     ? `<img class="company-logo" src="${company.logo}" alt="${escape(company.name)} logo" />`
-    : '';
+    : `<span class="company-logo-fallback" aria-hidden="true">${escape(initials)}</span>`;
   const companyBlock = company.reportBranding ? `
     <header class="company-header">
-      ${logo}
+      <span class="company-logo-shell">${logo}</span>
       <div class="company-contact">
         <div class="company-name">${escape(company.name)}</div>
         ${company.address ? `<div class="company-address">${escape(company.address)}</div>` : ''}
-        ${company.phone ? `<div class="company-phone">Telephone: ${escape(company.phone)}</div>` : ''}
+        ${company.phone ? `<div class="company-phone">${escape(company.phone)}</div>` : ''}
       </div>
     </header>` : '';
   const rows = requests.map((request, index) => `<tr>
@@ -42,13 +43,15 @@ export function purchaseRequestPrintHtml({ company, requests, preparedBy, date =
     * { box-sizing: border-box; }
     body { margin: 0; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.45; }
     .sheet { border: 1px solid #999; padding: 14mm 12mm 10mm; }
-    .company-header { display: flex; align-items: flex-start; gap: 6mm; margin-bottom: 12mm; break-inside: avoid; }
+    .company-header { display: flex; align-items: center; gap: 5mm; margin-bottom: 12mm; break-inside: avoid; }
     h1 { margin: 0 0 3mm; font-size: 15pt; font-weight: 400; letter-spacing: .02em; line-height: 1.25; }
-    .company-logo { display: block; max-width: 26mm; max-height: 26mm; width: auto; height: auto; object-fit: contain; flex-shrink: 0; }
-    .company-contact { min-width: 0; color: #606060; font-size: 9pt; overflow-wrap: anywhere; }
-    .company-name { color: #111; font-size: 19pt; font-weight: 700; line-height: 1.25; margin-bottom: 3mm; }
+    .company-logo-shell { display: flex; width: 17mm; height: 17mm; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; border: 1px solid #dfe2e7; border-radius: 3mm; background: #fff; }
+    .company-logo { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .company-logo-fallback { color: #171719; font-size: 13pt; font-weight: 700; }
+    .company-contact { min-width: 0; color: #5f6673; font-size: 9pt; line-height: 1.45; overflow-wrap: anywhere; }
+    .company-name { color: #202532; font-size: 14pt; font-weight: 700; line-height: 1.25; margin-bottom: 1.5mm; }
     .company-address { white-space: pre-line; }
-    .company-phone { margin-top: 4px; }
+    .company-phone { margin-top: 1mm; }
     .document-info { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 9mm; break-inside: avoid; }
     .prepared { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .prepared strong { display: block; margin-bottom: 3px; font-size: 9pt; }

@@ -11,6 +11,7 @@ import Toast from "../Components/Toast";
 import CreateRepairModal, { type RepairPartDraft } from "../Components/CreateRepairModal";
 import type { AuthUser } from "../types/auth";
 import api, { getApiError } from "../api/axios";
+import { saveRepairPaymentDraft } from "../data/paymentHistory";
 
 export type RepairJob = {
   id: string;
@@ -25,7 +26,7 @@ export type RepairJob = {
   technician: string;
   promisedDate: string | null;
   priority: string;
-  parts?: { stockId: string; name: string; quantity: number; total: number }[];
+  parts?: { stockId: string; name: string; sku?: string | null; quantity: number; total: number }[];
 };
 type ToastState = { message: string; tone: "success" | "error" };
 const statuses = [
@@ -108,6 +109,26 @@ function RepairJobsPage({
     const timer = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+  useEffect(() => {
+    if (!actionJob) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-repair-action-menu]')) return;
+      setActionJob(null);
+      setActionMenuPosition(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setActionJob(null);
+      setActionMenuPosition(null);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [actionJob]);
   const metrics = useMemo(
     () => ({
       open: jobs.filter(
@@ -192,7 +213,28 @@ function RepairJobsPage({
     if (!statusJob) return;
     setIsUpdatingStatus(true);
     try {
-      await api.patch(`/repairs/${statusJob.id}`, { status });
+      const { data } = await api.patch(`/repairs/${statusJob.id}`, { status });
+      if (status === "Delivered") {
+        const deliveredJob = data.job as RepairJob;
+        saveRepairPaymentDraft({
+          customerName: deliveredJob.customerName,
+          customerPhone: deliveredJob.customerPhone || "",
+          repair: {
+            jobNumber: deliveredJob.jobNumber,
+            assetName: deliveredJob.assetName,
+            assetIdentifier: deliveredJob.assetIdentifier,
+            issue: deliveredJob.issue,
+          },
+          lines: (deliveredJob.parts || []).map((part) => ({
+            name: part.name,
+            sku: part.sku || null,
+            quantity: part.quantity,
+            unitPrice: part.quantity > 0 ? part.total / part.quantity : 0,
+          })),
+        });
+        window.location.href = "/payments";
+        return;
+      }
       setToast({
         message: `${statusJob.jobNumber} status updated to ${status}.`,
         tone: "success",
@@ -449,6 +491,7 @@ function RepairJobsPage({
         <div
           className="fixed z-30 w-40 rounded-xl border border-[#e4e5e8] bg-white p-1.5 shadow-xl"
           style={actionMenuPosition}
+          data-repair-action-menu
         >
           <ActionMenuButton
             onClick={() => {

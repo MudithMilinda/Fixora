@@ -1,7 +1,7 @@
 import type { AuthUser } from '../types/auth'
 import { useCompanyBranding } from '../CompanyBrandingContext'
 
-function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenInventory = () => { window.location.href = '/inventory' }, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'purchaseOrders' | 'suppliers' | 'branches' | 'profile' | 'companySettings', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenInventory?: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
+function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenInventory = () => { window.location.href = '/inventory' }, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'branches' | 'profile' | 'companySettings', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenInventory?: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
     const initials = user.fullName.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
     const roleLabel = user.role === 'super_admin' ? 'Super Admin' : 'Administrator'
     const { company } = useCompanyBranding()
@@ -49,8 +49,13 @@ function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory
             </nav>
             <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77777c]">Procurement</p>
             <nav aria-label="Procurement"><button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'purchaseRequests' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/purchase-requests' }}>▤ Purchase requests</button>
-                <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'quotations' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" aria-current={activePage === 'quotations' ? 'page' : undefined} onClick={() => { window.location.href = '/quotations' }}>▧ Quotations</button>
                 <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'purchaseOrders' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" aria-current={activePage === 'purchaseOrders' ? 'page' : undefined} onClick={() => { window.location.href = '/purchase-orders' }}>▤ Purchase orders</button>
+            </nav>
+            <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77777c]">Sales &amp; billing</p>
+            <nav aria-label="Sales and billing">
+                <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'quotations' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" aria-current={activePage === 'quotations' ? 'page' : undefined} onClick={() => { window.location.href = '/quotations' }}>▧ Quotations</button>
+                <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'payments' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" aria-current={activePage === 'payments' ? 'page' : undefined} onClick={() => { window.location.href = '/payments' }}>◫ Payments</button>
+                <button className={`mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activePage === 'paymentHistory' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" aria-current={activePage === 'paymentHistory' ? 'page' : undefined} onClick={() => { window.location.href = '/payment-history' }}>◷ Payment history</button>
             </nav>
             <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#77777c]">Management</p>
             <nav aria-label="Management">
