@@ -4,6 +4,7 @@ const Quotation = require('../models/Quotation');
 const Supplier = require('../models/Supplier');
 const StockRequest = require('../models/StockRequest');
 const Branch = require('../models/Branch');
+const PurchaseOrder = require('../models/PurchaseOrder');
 const { validateQuotation, buildQuotationItems, serializeQuotation, nextQuotationNumber } = require('../services/quotations');
 
 const router = express.Router();
@@ -49,6 +50,7 @@ async function save(req, res, next) {
     const quote = await Quotation.sequelize.transaction(async (transaction) => {
       const existing = req.params.id ? await Quotation.findOne({ where: { id: req.params.id, ...scope(req) }, attributes, transaction, lock: transaction.LOCK.UPDATE }) : null;
       if (req.params.id && !existing) { const error = new Error('Quotation not found.'); error.status = 404; throw error; }
+      if (existing?.status === 'Approved') { const error = new Error('Approved quotations cannot be edited.'); error.status = 400; throw error; }
       const supplier = await Supplier.findOne({ where: { id: values.supplierId, companyId: req.user.companyId, isActive: true }, transaction });
       if (!supplier && existing?.supplierId !== values.supplierId) { const error = new Error('Select an active supplier from your company.'); error.status = 400; throw error; }
       const requests = await StockRequest.findAll({ where: { id: values.items.map((item) => item.requestId), branchId: req.branchId }, transaction });
@@ -73,6 +75,34 @@ async function save(req, res, next) {
 router.post('/', save);
 router.put('/:id', save);
 
+router.post('/:id/approve', async (req, res, next) => {
+  try {
+    const result = await Quotation.sequelize.transaction(async (transaction) => {
+      const quote = await Quotation.findOne({ where: { id: req.params.id, ...scope(req) }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!quote) { const error = new Error('Quotation not found.'); error.status = 404; throw error; }
+      if (quote.status === 'Approved') { const error = new Error('This quotation has already been approved.'); error.status = 409; throw error; }
+      await Branch.findOne({ where: { id: req.branchId, companyId: req.user.companyId }, transaction, lock: transaction.LOCK.UPDATE });
+      const date = new Date();
+      const key = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+      const prefix = `PO-${key}-`;
+      const orders = await PurchaseOrder.findAll({ where: scope(req), attributes: ['orderNumber'], transaction, lock: transaction.LOCK.UPDATE });
+      const sequence = orders.reduce((highest, order) => {
+        const match = order.orderNumber?.match(new RegExp(`^${prefix}(\\d{3,})$`));
+        return match ? Math.max(highest, Number(match[1])) : highest;
+      }, 0) + 1;
+      const order = await PurchaseOrder.create({ ...scope(req), quotationId: quote.id, orderNumber: `${prefix}${String(sequence).padStart(3, '0')}`, supplierId: quote.supplierId, supplierName: quote.supplierName, currency: quote.currency, items: quote.items, totalCents: quote.totalCents, createdBy: req.user.id }, { transaction });
+      await quote.update({ status: 'Approved', approvedBy: req.user.id, approvedAt: new Date() }, { transaction });
+      await StockRequest.update({ status: 'Ordered' }, { where: { id: quote.items.map((item) => item.requestId), branchId: req.branchId }, transaction });
+      return { quote, order };
+    });
+    res.status(201).json({ success: true, quotation: serializeQuotation(result.quote), purchaseOrder: { id: result.order.id, orderNumber: result.order.orderNumber } });
+  } catch (error) {
+    if (error.status === 404) return res.status(404).json({ success: false, message: error.message });
+    if (error.status === 409 || error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ success: false, message: error.message || 'This quotation already has a purchase order.' });
+    next(error);
+  }
+});
+
 router.delete('/:id', async (req, res, next) => {
   try {
     const quote = await Quotation.findOne({
@@ -81,6 +111,7 @@ router.delete('/:id', async (req, res, next) => {
     if (!quote) {
       return res.status(404).json({ success: false, message: 'Quotation not found.' });
     }
+    if (quote.status === 'Approved') return res.status(400).json({ success: false, message: 'Approved quotations cannot be deleted.' });
     await quote.destroy();
     res.json({ success: true });
   } catch (error) { next(error); }

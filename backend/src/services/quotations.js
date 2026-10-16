@@ -98,7 +98,7 @@ function serializeQuotation(quote) {
     quotationNumber: quote.quotationNumber, quotationDate: quote.quotationDate,
     validUntil: quote.validUntil, currency: quote.currency, items: quote.items,
     totalCents: Number(quote.totalCents), notes: quote.notes,
-    attachmentName: quote.attachmentName, createdAt: quote.createdAt,
+    attachmentName: quote.attachmentName, status: quote.status || 'Pending', approvedAt: quote.approvedAt || null, createdAt: quote.createdAt,
   };
 }
 

@@ -25,6 +25,9 @@ module.exports = sequelize.define('Quotation', {
   attachmentName: { type: DataTypes.STRING(180), allowNull: true },
   attachmentType: { type: DataTypes.STRING(40), allowNull: true },
   attachmentData: { type: DataTypes.TEXT('medium'), allowNull: true },
+  status: { type: DataTypes.ENUM('Pending', 'Approved'), allowNull: false, defaultValue: 'Pending' },
+  approvedBy: { type: DataTypes.UUID, allowNull: true },
+  approvedAt: { type: DataTypes.DATE, allowNull: true },
   createdBy: { type: DataTypes.UUID, allowNull: false },
 }, {
   tableName: 'quotations', underscored: true,

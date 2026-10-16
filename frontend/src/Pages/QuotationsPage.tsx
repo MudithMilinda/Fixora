@@ -38,6 +38,7 @@ type Quotation = {
   totalCents: number;
   notes: string | null;
   attachmentName: string | null;
+  status: "Pending" | "Approved";
 };
 type Props = {
   user: AuthUser;
@@ -72,6 +73,9 @@ export default function QuotationsPage(props: Props) {
   const [compareId, setCompareId] = useState("");
   const [editor, setEditor] = useState<Quotation | "new" | null>(null);
   const [deletingId, setDeletingId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isApproving, setIsApproving] = useState(false);
+  const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);
   const printRequestRef = useRef<AbortController | null>(null);
@@ -117,12 +121,15 @@ export default function QuotationsPage(props: Props) {
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
-  const totalItems = filtered.reduce((total, quote) => total + quote.items.length, 0);
-  const totalQuantity = filtered.reduce(
+  const approvable = filtered.filter((quote) => quote.status !== "Approved");
+  const selectedQuotes = approvable.filter((quote) => selectedIds.has(quote.id));
+  const summaryQuotes = selectedQuotes.length ? selectedQuotes : filtered;
+  const totalItems = summaryQuotes.reduce((total, quote) => total + quote.items.length, 0);
+  const totalQuantity = summaryQuotes.reduce(
     (total, quote) => total + quote.items.reduce((quantity, item) => quantity + item.quantity, 0),
     0,
   );
-  const totalAmounts = [...filtered.reduce((totals, quote) => {
+  const totalAmounts = [...summaryQuotes.reduce((totals, quote) => {
     totals.set(quote.currency, (totals.get(quote.currency) || 0) + quote.totalCents);
     return totals;
   }, new Map<string, number>()).entries()]
@@ -172,6 +179,25 @@ export default function QuotationsPage(props: Props) {
     } finally {
       setDeletingId("");
     }
+  }
+
+  async function approveSelected() {
+    if (!selectedQuotes.length) return;
+    setIsApproving(true);
+    try {
+      const results = [] as { quotation: Quotation; purchaseOrder: { orderNumber: string } }[];
+      for (const quote of selectedQuotes) {
+        const { data } = await api.post(`/quotations/${quote.id}/approve`);
+        results.push(data);
+      }
+      const updated = new Map(results.map((result) => [result.quotation.id, result.quotation]));
+      setQuotations((current) => current.map((quote) => updated.get(quote.id) || quote));
+      setSelectedIds(new Set());
+      setIsApproveConfirmOpen(false);
+      setToast({ message: `${results.length} quotation${results.length === 1 ? "" : "s"} approved and purchase order${results.length === 1 ? "" : "s"} created.`, tone: "success" });
+    } catch (reason) {
+      setToast({ message: getApiError(reason, "Unable to approve selected quotations."), tone: "error" });
+    } finally { setIsApproving(false); }
   }
 
   async function printQuotations() {
@@ -358,6 +384,16 @@ export default function QuotationsPage(props: Props) {
                   <table className="w-full min-w-[740px] border-collapse text-left text-[13px] [&_th]:px-3 [&_th]:pb-3.5 [&_th]:text-[10px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[.05em] [&_th]:text-[#777e8e] [&_th:first-child]:pl-0 [&_th:last-child]:pr-0">
                     <thead>
                       <tr>
+                        <th className="w-10 px-0 pb-3.5">
+                          <input
+                            className="h-4 w-4 rounded border-[#cfd2d9] accent-[#171719]"
+                            type="checkbox"
+                            aria-label="Select all pending quotations"
+                            disabled={!approvable.length || isApproving}
+                            checked={approvable.length > 0 && approvable.every((quote) => selectedIds.has(quote.id))}
+                            onChange={(event) => setSelectedIds(event.target.checked ? new Set(approvable.map((quote) => quote.id)) : new Set())}
+                          />
+                        </th>
                         <th>Quotation</th>
                         <th>Supplier</th>
                         <th>Date</th>
@@ -370,13 +406,27 @@ export default function QuotationsPage(props: Props) {
                     <tbody>
                       {loading ? (
                         <tr>
-                          <td colSpan={7} className="px-3 py-12 text-center text-[#747a89]">
+                          <td colSpan={8} className="px-3 py-12 text-center text-[#747a89]">
                             Loading quotations…
                           </td>
                         </tr>
                       ) : filtered.length ? (
                         filtered.map((quote) => (
                           <tr key={quote.id} className="border-t border-[#f0f1f4] [&>td]:px-3 [&>td]:py-[17px] [&>td]:break-words [&>td:first-child]:pl-0 [&>td:last-child]:pr-0">
+                            <td className="w-10 px-0">
+                              <input
+                                className="h-4 w-4 rounded border-[#cfd2d9] accent-[#171719] disabled:opacity-40"
+                                type="checkbox"
+                                aria-label={`Select ${quote.quotationNumber}`}
+                                disabled={quote.status === "Approved" || isApproving}
+                                checked={selectedIds.has(quote.id)}
+                                onChange={(event) => setSelectedIds((current) => {
+                                  const next = new Set(current);
+                                  if (event.target.checked) next.add(quote.id); else next.delete(quote.id);
+                                  return next;
+                                })}
+                              />
+                            </td>
                             <td>
                               <strong>{quote.quotationNumber}</strong>
                               <small className="mt-1 block text-[11px] text-[#7a8090]">
@@ -416,6 +466,7 @@ export default function QuotationsPage(props: Props) {
                                 type="button"
                                 aria-label={`Edit ${quote.quotationNumber}`}
                                 title="Edit quotation"
+                                disabled={quote.status === "Approved"}
                                 onClick={() => setEditor(quote)}
                               >
                                 <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
@@ -427,7 +478,7 @@ export default function QuotationsPage(props: Props) {
                                 type="button"
                                 aria-label={`Delete ${quote.quotationNumber}`}
                                 title="Delete quotation"
-                                disabled={deletingId === quote.id}
+                                disabled={deletingId === quote.id || quote.status === "Approved"}
                                 onClick={() => void deleteQuotation(quote)}
                               >
                                 {deletingId === quote.id ? (
@@ -444,7 +495,7 @@ export default function QuotationsPage(props: Props) {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="px-3 py-12 text-center text-[#747a89]">
+                          <td colSpan={8} className="px-3 py-12 text-center text-[#747a89]">
                             <strong>
                               {search
                                 ? "No matching quotations"
@@ -462,11 +513,14 @@ export default function QuotationsPage(props: Props) {
                     {!loading && filtered.length > 0 && (
                       <tfoot>
                         <tr className="border-t border-[#e3e5ea] bg-[#fafafb]">
-                          <td colSpan={7} className="px-0 py-4">
+                          <td colSpan={8} className="px-0 py-4">
                             <div className="flex flex-wrap justify-end gap-x-8 gap-y-2 text-[12px] text-[#747a89]">
                               <span>Total items <strong className="ml-2 text-[#262b3a]">{totalItems}</strong></span>
                               <span>Total quantity <strong className="ml-2 text-[#262b3a]">{totalQuantity}</strong></span>
                               <span>Total amount <strong className="ml-2 whitespace-nowrap text-[#262b3a]">{totalAmounts.map(([currency, amount]) => money(amount, currency)).join(" · ")}</strong></span>
+                              <button className="-my-2 inline-flex min-h-[36px] items-center justify-center rounded-[10px] bg-[#171719] px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={!selectedQuotes.length || isApproving} onClick={() => setIsApproveConfirmOpen(true)}>
+                                {`Approve selected${selectedQuotes.length ? ` (${selectedQuotes.length})` : ""}`}
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -575,6 +629,19 @@ export default function QuotationsPage(props: Props) {
           }}
           onDelete={deleteQuotation}
         />
+      )}
+      {isApproveConfirmOpen && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-[#101012]/45 p-4" role="presentation">
+          <section className="w-full max-w-[440px] rounded-[20px] border border-[#e7e7e9] bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="approve-quotation-title">
+            <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#7a8090]">Procurement</p>
+            <h2 id="approve-quotation-title" className="mt-2 text-xl font-bold">Approve selected quotations?</h2>
+            <p className="mt-2 text-sm leading-6 text-[#747a89]">This will create {selectedQuotes.length} purchase order{selectedQuotes.length === 1 ? "" : "s"} and mark the selected purchase requests as ordered.</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button className="min-h-[42px] rounded-[11px] border border-[#e2e3e8] bg-white px-4 text-xs font-semibold text-[#515867] hover:bg-[#f7f7f8] disabled:opacity-50" type="button" disabled={isApproving} onClick={() => setIsApproveConfirmOpen(false)}>Cancel</button>
+              <button className="min-h-[42px] rounded-[11px] bg-[#171719] px-4 text-xs font-semibold text-white disabled:opacity-50" type="button" disabled={isApproving} onClick={() => void approveSelected()}>{isApproving ? "Approving…" : "Approve & create orders"}</button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );

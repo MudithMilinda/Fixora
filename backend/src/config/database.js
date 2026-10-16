@@ -39,6 +39,15 @@ async function initializeDatabase() {
   await sequelize.sync();
   await migrateSupplierPhones(sequelize);
 
+  // Existing installations need the quotation approval fields as well.
+  const quotationColumns = await sequelize.getQueryInterface().describeTable('quotations');
+  const addQuotationColumn = async (name, definition) => {
+    if (!quotationColumns[name]) await sequelize.getQueryInterface().addColumn('quotations', name, definition);
+  };
+  await addQuotationColumn('status', { type: Sequelize.ENUM('Pending', 'Approved'), allowNull: false, defaultValue: 'Pending' });
+  await addQuotationColumn('approved_by', { type: Sequelize.UUID, allowNull: true });
+  await addQuotationColumn('approved_at', { type: Sequelize.DATE, allowNull: true });
+
   // Keep the authentication session version available for databases created
   // before this field was introduced, without using destructive schema sync.
   const queryInterface = sequelize.getQueryInterface();

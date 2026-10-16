@@ -15,6 +15,7 @@ const stockRequestRoutes = require("./routes/stockRequests");
 const branchRoutes = require("./routes/branches");
 const supplierRoutes = require("./routes/suppliers");
 const quotationRoutes = require("./routes/quotations");
+const { router: purchaseOrderRoutes } = require("./routes/purchaseOrders");
 const companySettingsRoutes = require("./routes/companySettings");
 require("./models/User");
 require("./models/RepairJob");
@@ -25,6 +26,8 @@ require("./models/Company");
 require("./models/Branch");
 require("./models/UserBranch");
 require("./models/Supplier");
+require("./models/Quotation");
+require("./models/PurchaseOrder");
 
 const app = express();
 const frontendOrigins = new Set(
@@ -69,6 +72,7 @@ app.use("/api/stock-requests", stockRequestRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/quotations", quotationRoutes);
+app.use("/api/purchase-orders", purchaseOrderRoutes);
 app.use("/api/company-settings", companySettingsRoutes);
 
 const port = Number(process.env.PORT) || 4000;
