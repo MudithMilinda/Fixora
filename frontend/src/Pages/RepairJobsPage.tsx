@@ -217,6 +217,7 @@ function RepairJobsPage({
       if (status === "Delivered") {
         const deliveredJob = data.job as RepairJob;
         saveRepairPaymentDraft({
+          repairId: deliveredJob.id,
           customerName: deliveredJob.customerName,
           customerPhone: deliveredJob.customerPhone || "",
           repair: {

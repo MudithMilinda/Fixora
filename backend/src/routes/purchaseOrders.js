@@ -43,10 +43,11 @@ router.patch('/:id/receive', async (req, res, next) => {
           sku: item.sku,
           quantity: Number(item.quantity),
           costPrice: item.unitPriceCents / 100,
+          costCurrency: record.currency,
           sellingPrice,
         }, { transaction });
       }
-      await record.update({ status: 'Received' }, { transaction });
+      await record.update({ status: 'Received', receivedAt: new Date() }, { transaction });
       return record;
     });
     res.json({ success: true, order: serialize(order) });

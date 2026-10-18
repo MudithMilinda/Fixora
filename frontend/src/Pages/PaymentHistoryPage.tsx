@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../Components/Sidebar";
 import SaleInvoiceModal from "../Components/SaleInvoiceModal";
 import type { AuthUser } from "../types/auth";
+import api, { getApiError } from "../api/axios";
 import { getCompletedSales, type CompletedSale } from "../data/paymentHistory";
 
 const money = (value: number) =>
@@ -15,7 +16,12 @@ export default function PaymentHistoryPage(props: {
   onOpenProfile: () => void;
   onSignOut: () => void;
 }) {
-  const [sales] = useState<CompletedSale[]>(getCompletedSales);
+  const [sales, setSales] = useState<CompletedSale[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [legacySales] = useState(getCompletedSales);
+  const [showLegacy, setShowLegacy] = useState(false);
+  useEffect(() => { api.get('/sales').then(({ data }) => setSales(data.sales)).catch(error => setError(getApiError(error, 'Unable to load payment history.'))).finally(() => setLoading(false)); }, []);
   const [search, setSearch] = useState("");
   const [viewingSale, setViewingSale] = useState<CompletedSale | null>(null);
   const filtered = useMemo(() => {
@@ -52,6 +58,8 @@ export default function PaymentHistoryPage(props: {
           </button>
         </header>
 
+        {legacySales.length > 0 && <section className="mt-5 rounded-xl bg-[#fff7e8] p-3 text-sm text-[#795b21]"><p>This browser has {legacySales.length} older locally saved sales. They have not been assigned to a branch or moved to the database.</p><button type="button" className="mt-2 font-semibold underline" onClick={() => setShowLegacy(value => !value)}>{showLegacy ? 'Hide' : 'View'} older sales</button>{showLegacy && <ul className="mt-2 space-y-2">{legacySales.map(sale => <li key={sale.id} className="flex items-center justify-between gap-3"><span>{sale.id} · {sale.customerName || 'Walk-in customer'} · {money(sale.total)}</span><button type="button" className="font-semibold underline" onClick={() => setViewingSale(sale)}>View invoice</button></li>)}</ul>}</section>}
+        {error && <p role="alert" className="mt-5 text-sm text-red-700">{error}</p>}
         <section className="mt-6 rounded-[18px] border border-[#eceaf2] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -81,7 +89,7 @@ export default function PaymentHistoryPage(props: {
                     <td className="whitespace-nowrap py-4 pr-5 text-right font-semibold tabular-nums">{money(sale.total)}</td>
                     <td className="py-4 text-center"><button type="button" onClick={() => setViewingSale(sale)} aria-label={`View invoice ${sale.id}`} title="View invoice" className="mx-auto grid h-8 w-8 place-items-center rounded-[9px] border border-[#dfe2e7] bg-white text-[#667080] shadow-[0_1px_1px_#10101206] transition hover:border-[#cbd0d8] hover:bg-[#f6f7f8] hover:text-[#262b3a]"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path d="M2.8 12s3.3-5.7 9.2-5.7 9.2 5.7 9.2 5.7-3.3 5.7-9.2 5.7S2.8 12 2.8 12Z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="2.6" /></svg></button></td>
                   </tr>
-                )) : <tr><td colSpan={7} className="py-14 text-center text-sm text-[#747a89]">{sales.length ? "No matching payment records." : "Completed sales will appear here."}</td></tr>}
+                )) : <tr><td colSpan={7} className="py-14 text-center text-sm text-[#747a89]">{loading ? "Loading sales…" : error ? "Payment history could not be loaded." : sales.length ? "No matching payment records." : "Completed sales will appear here."}</td></tr>}
               </tbody>
             </table>
           </div>

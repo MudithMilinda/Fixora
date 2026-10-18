@@ -12,7 +12,7 @@ function ProfilePage({ user, onGoDashboard, onOpenRepairs, onOpenHistory, onProf
     const [firstName, ...remainingName] = user.fullName.trim().split(/\s+/)
     const lastName = remainingName.join(' ')
     const initials = user.fullName.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
-    const roleLabel = user.role === 'super_admin' ? 'Super Admin' : 'Administrator'
+    const roleLabel = user.customRoleId ? 'Team member' : user.role === 'super_admin' ? 'Super Admin' : 'Administrator'
 
     function showToast(message: string, tone: 'success' | 'error') {
         setToast({ message, tone })

@@ -12,6 +12,7 @@ module.exports = sequelize.define('PurchaseOrder', {
   currency: { type: DataTypes.STRING(3), allowNull: false },
   items: { type: DataTypes.JSON, allowNull: false, get() { const value = this.getDataValue('items'); return typeof value === 'string' ? JSON.parse(value) : value; } },
   totalCents: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
+  receivedAt: { type: DataTypes.DATE, allowNull: true, field: 'received_at' },
   status: { type: DataTypes.ENUM('Ordered', 'Received', 'Cancelled'), allowNull: false, defaultValue: 'Ordered' },
   createdBy: { type: DataTypes.UUID, allowNull: false },
 }, { tableName: 'purchase_orders', underscored: true, indexes: [{ unique: true, fields: ['company_id', 'branch_id', 'order_number'], name: 'purchase_order_reference' }] });

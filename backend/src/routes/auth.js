@@ -18,7 +18,7 @@ const loginLimiter = rateLimit({
 });
 
 function publicUser(user) {
-  return { id: user.id, fullName: user.fullName, email: user.email, role: user.role, companyId: user.companyId, activeBranchId: user.activeBranchId };
+  return { id: user.id, fullName: user.fullName, email: user.email, role: user.role, customRoleId: user.customRoleId, companyId: user.companyId, activeBranchId: user.activeBranchId };
 }
 
 router.post("/login", loginLimiter, async (req, res, next) => {

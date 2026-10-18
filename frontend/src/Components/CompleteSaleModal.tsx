@@ -7,12 +7,16 @@ type CustomerDetails = {
 
 export default function CompleteSaleModal({
   total,
+  saving = false,
+  error,
   onClose,
   onConfirm,
   initialCustomerName = "",
   initialCustomerPhone = "",
 }: {
   total: string;
+  saving?: boolean;
+  error?: string;
   onClose: () => void;
   onConfirm: (customer: CustomerDetails) => void;
   initialCustomerName?: string;
@@ -35,7 +39,7 @@ export default function CompleteSaleModal({
     <div
       className="fixed inset-0 z-[60] grid place-items-center bg-[#101012]/45 p-4"
       onMouseDown={(event) => {
-        if (event.currentTarget === event.target) onClose();
+        if (!saving && event.currentTarget === event.target) onClose();
       }}
     >
       <form
@@ -56,7 +60,7 @@ export default function CompleteSaleModal({
         >
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#7a8090]">
-              Complete sale
+              {saving ? "Saving…" : "Complete sale"}
             </p>
             <h2
               id="complete-sale-title"
@@ -71,6 +75,7 @@ export default function CompleteSaleModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={saving}
             aria-label="Close"
             className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-xl leading-none text-[#747a89] transition hover:bg-[#f2f3f5]"
           >
@@ -88,6 +93,7 @@ export default function CompleteSaleModal({
             </div>
             <strong className="text-base tabular-nums text-[#262b3a]">{total}</strong>
           </div>
+          {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           <div className="grid gap-4">
           <label className="block text-xs font-semibold leading-4 text-[#596170]">
             Customer name <span className="font-normal text-[#949aa5]">(optional)</span>
@@ -121,15 +127,17 @@ export default function CompleteSaleModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={saving}
             className="h-10 rounded-[10px] border border-[#dfe2e7] bg-white px-4 text-xs font-semibold text-[#565d6c] transition hover:bg-[#f6f7f8]"
           >
             Back
           </button>
           <button
             type="submit"
+            disabled={saving}
             className="h-10 rounded-[10px] bg-[#171719] px-4 text-xs font-semibold text-white transition hover:bg-[#2a2a2e]"
           >
-            Complete sale
+            {saving ? "Saving…" : "Complete sale"}
           </button>
         </footer>
       </form>

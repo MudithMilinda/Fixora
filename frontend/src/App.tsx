@@ -6,6 +6,8 @@ import RepairJobsPage from './Pages/RepairJobsPage'
 import RepairHistoryPage from './Pages/RepairHistoryPage'
 import InventoryPage from './Pages/InventoryPage'
 import ItemsPage from './Pages/ItemsPage'
+import UsersRolesPage from './Pages/UsersRolesPage'
+import ProfitReportPage from './Pages/ProfitReportPage'
 import BranchesPage from './Pages/BranchesPage'
 import PurchaseRequestsPage from './Pages/PurchaseRequestsPage'
 import SuppliersPage from './Pages/SuppliersPage'
@@ -14,16 +16,20 @@ import CompanySettingsPage from './Pages/CompanySettingsPage'
 import PurchaseOrdersPage from './Pages/PurchaseOrdersPage'
 import PaymentsPage from './Pages/PaymentsPage'
 import PaymentHistoryPage from './Pages/PaymentHistoryPage'
+import TechniciansPage from './Pages/TechniciansPage'
 import type { AuthUser } from './types/auth'
 import api from './api/axios'
 import { CompanyBrandingProvider } from './CompanyBrandingContext'
 
-type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'branches' | 'profile' | 'companySettings'
+type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport'
 
 function pageFromPath(pathname: string): AppPage {
+  if (pathname === '/profit-report') return 'profitReport'
+  if (pathname === '/users-roles') return 'usersRoles'
   if (pathname === '/quotations') return 'quotations'
   if (pathname === '/payments') return 'payments'
   if (pathname === '/payment-history') return 'paymentHistory'
+  if (pathname === '/technicians') return 'technicians'
   if (pathname === '/purchase-orders') return 'purchaseOrders'
   if (pathname === '/company-settings') return 'companySettings'
   if (/^\/repair-jobs\/[^/]+$/.test(pathname)) return 'repairs'
@@ -39,9 +45,12 @@ function pageFromPath(pathname: string): AppPage {
 }
 
 function pathForPage(page: AppPage) {
+  if (page === 'profitReport') return '/profit-report'
+  if (page === 'usersRoles') return '/users-roles'
   if (page === 'quotations') return '/quotations'
   if (page === 'payments') return '/payments'
   if (page === 'paymentHistory') return '/payment-history'
+  if (page === 'technicians') return '/technicians'
   if (page === 'purchaseOrders') return '/purchase-orders'
   if (page === 'companySettings') return '/company-settings'
   return page === 'repairs' ? '/repair-jobs' : page === 'history' ? '/repair-history' : page === 'inventory' ? '/inventory' : page === 'items' ? '/items' : page === 'purchaseRequests' ? '/purchase-requests' : page === 'suppliers' ? '/suppliers' : page === 'branches' ? '/branches' : page === 'profile' ? '/profile' : '/dashboard'
@@ -95,9 +104,12 @@ function App() {
 
   if (isSignedIn && user) {
     const renderPage = () => {
+    if (currentPage === 'profitReport') return <ProfitReportPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'usersRoles') return <UsersRolesPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'quotations') return <QuotationsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'payments') return <PaymentsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'paymentHistory') return <PaymentHistoryPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'technicians') return <TechniciansPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'purchaseOrders') return <PurchaseOrdersPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'companySettings') return <CompanySettingsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'profile') {

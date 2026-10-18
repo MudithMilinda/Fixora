@@ -12,11 +12,15 @@ const repairRoutes = require("./routes/repairs");
 const itemRoutes = require("./routes/items");
 const stockRoutes = require("./routes/stocks");
 const stockRequestRoutes = require("./routes/stockRequests");
+const usersRoutes = require('./routes/users');
+const salesRoutes = require('./routes/sales');
+const reportsRoutes = require('./routes/reports');
 const branchRoutes = require("./routes/branches");
 const supplierRoutes = require("./routes/suppliers");
 const quotationRoutes = require("./routes/quotations");
 const { router: purchaseOrderRoutes } = require("./routes/purchaseOrders");
 const companySettingsRoutes = require("./routes/companySettings");
+const technicianRoutes = require("./routes/technicians");
 require("./models/User");
 require("./models/RepairJob");
 require("./models/Item");
@@ -25,9 +29,11 @@ require("./models/StockRequest");
 require("./models/Company");
 require("./models/Branch");
 require("./models/UserBranch");
+require("./models/Role");
 require("./models/Supplier");
 require("./models/Quotation");
 require("./models/PurchaseOrder");
+require("./models/Technician");
 
 const app = express();
 const frontendOrigins = new Set(
@@ -70,10 +76,14 @@ app.use("/api/items", itemRoutes);
 app.use("/api/stocks", stockRoutes);
 app.use("/api/stock-requests", stockRequestRoutes);
 app.use("/api/branches", branchRoutes);
+app.use("/api/sales", salesRoutes);
+app.use("/api/reports", reportsRoutes);
+app.use("/api/users", usersRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/quotations", quotationRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
 app.use("/api/company-settings", companySettingsRoutes);
+app.use("/api/technicians", technicianRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 

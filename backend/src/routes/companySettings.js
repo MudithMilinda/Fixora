@@ -21,7 +21,7 @@ router.get('/', async (req, res, next) => {
 });
 
 router.put('/', async (req, res, next) => {
-  if (!['admin', 'super_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Only administrators can update company settings.' });
+  if (req.user.customRoleId || !['admin', 'super_admin'].includes(req.user.role)) return res.status(403).json({ message: 'Only administrators can update company settings.' });
   let values;
   try { values = validateCompanySettings(req.body); }
   catch (error) { return res.status(400).json({ message: error.message }); }

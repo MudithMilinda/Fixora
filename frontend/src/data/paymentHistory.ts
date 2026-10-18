@@ -24,6 +24,7 @@ export type CompletedSale = {
 };
 
 export type RepairPaymentDraft = {
+  repairId: string;
   customerName: string;
   customerPhone: string;
   repair: NonNullable<CompletedSale["repair"]>;

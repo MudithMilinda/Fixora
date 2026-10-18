@@ -4,7 +4,7 @@ import Toast from "../Components/Toast";
 import CompleteSaleModal from "../Components/CompleteSaleModal";
 import AddCustomSaleItemModal from "../Components/AddCustomSaleItemModal";
 import SaleInvoiceModal from "../Components/SaleInvoiceModal";
-import { saveCompletedSale, takeRepairPaymentDraft, type CompletedSale, type RepairPaymentDraft } from "../data/paymentHistory";
+import { takeRepairPaymentDraft, type CompletedSale, type RepairPaymentDraft } from "../data/paymentHistory";
 import api, { getApiError } from "../api/axios";
 import type { AuthUser } from "../types/auth";
 
@@ -15,7 +15,7 @@ type StockItem = {
   quantity: number;
   sellingPrice: number;
 };
-type SaleLine = StockItem & { saleQuantity: number; isCustom?: boolean };
+type SaleLine = StockItem & { saleQuantity: number; isCustom?: boolean; repairPartIndex?: number };
 type Payment = { id: number; method: string; amount: number };
 type ToastState = { message: string; tone: "success" | "error" };
 
@@ -47,6 +47,7 @@ export default function PaymentsPage(props: {
     repairDraft
       ? repairDraft.lines.map((line, index) => ({
           id: `repair-${index}-${line.name}`,
+          repairPartIndex: index,
           name: line.name,
           sku: line.sku,
           quantity: line.quantity,
@@ -67,6 +68,9 @@ export default function PaymentsPage(props: {
   const [isCustomItemOpen, setIsCustomItemOpen] = useState(false);
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
   const [loading, setLoading] = useState(true);
+  const [savingSale, setSavingSale] = useState(false);
+  const [saleError, setSaleError] = useState('');
+  const saleRequestId = useRef(crypto.randomUUID());
   const [toast, setToast] = useState<ToastState | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
@@ -133,12 +137,12 @@ export default function PaymentsPage(props: {
     0,
   );
   const enteredDiscount = Math.max(0, Number(discountValue) || 0);
-  const discount = Math.min(
+  const discount = Math.round(100 * Math.min(
     subtotal,
     discountType === "percent"
       ? (subtotal * Math.min(enteredDiscount, 100)) / 100
       : enteredDiscount,
-  );
+  )) / 100;
   const total = subtotal - discount;
   const paid = payments.reduce((total, payment) => total + payment.amount, 0);
   const due = Math.max(0, total - paid);
@@ -232,22 +236,29 @@ export default function PaymentsPage(props: {
       });
     setIsCompleteSaleOpen(true);
   }
-  function completeSale(customer: { name: string; phone: string }) {
-    setIsCompleteSaleOpen(false);
-    const sale: CompletedSale = {
-      id: `SALE-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${String(Date.now()).slice(-4)}`,
-      completedAt: new Date().toISOString(),
-      customerName: customer.name,
-      customerPhone: customer.phone,
-      subtotal,
-      discount,
-      total,
-      payments: payments.map(({ method, amount }) => ({ method, amount })),
-      lines: lines.map(({ name, sku, saleQuantity, sellingPrice }) => ({ name, sku, quantity: saleQuantity, unitPrice: sellingPrice })),
-      repair: repairDraft?.repair,
-    };
-    saveCompletedSale(sale);
-    setCompletedSale(sale);
+  async function completeSale(customer: { name: string; phone: string }) {
+    if (savingSale) return;
+    setSavingSale(true);
+    setSaleError('');
+    try {
+      if (repairDraft && !repairDraft.repairId) throw new Error('This repair draft is outdated. Return to the repair job and start payment again.');
+      const { data } = await api.post('/sales', {
+        requestId: saleRequestId.current,
+        repairId: repairDraft?.repairId,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        discount,
+        payments: payments.map(({ method, amount }) => ({ method, amount })),
+        lines: lines.map(line => line.repairPartIndex !== undefined
+          ? { type: 'repair', partIndex: line.repairPartIndex, quantity: line.saleQuantity }
+          : line.isCustom ? { type: 'custom', name: line.name, unitPrice: line.sellingPrice, quantity: line.saleQuantity }
+          : { type: 'stock', stockId: line.id, quantity: line.saleQuantity }),
+      });
+      setIsCompleteSaleOpen(false);
+      setCompletedSale(data.sale);
+    } catch (error) {
+      setSaleError(getApiError(error, error instanceof Error ? error.message : 'Unable to complete sale.'));
+    } finally { setSavingSale(false); }
   }
 
   return (
@@ -724,6 +735,8 @@ export default function PaymentsPage(props: {
           total={money(total)}
           onClose={() => setIsCompleteSaleOpen(false)}
           onConfirm={completeSale}
+          saving={savingSale}
+          error={saleError}
           initialCustomerName={repairDraft?.customerName}
           initialCustomerPhone={repairDraft?.customerPhone}
         />

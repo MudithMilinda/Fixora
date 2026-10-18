@@ -85,7 +85,7 @@ router.post("/", async (req, res, next) => {
       const stock = await Stock.findOne({ where: { id: requestedPart.stockId, branchId: req.branchId } });
       if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." });
       await stock.update({ quantity: stock.quantity - quantity });
-      parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), total: Number(stock.sellingPrice) * quantity });
+      parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), unitCostCents: stock.costCurrency === 'LKR' ? Math.round(Number(stock.costPrice) * 100) : null, total: Number(stock.sellingPrice) * quantity });
     }
     const jobNumber = `REP-${Date.now().toString().slice(-8)}`;
     const job = await RepairJob.create({
@@ -160,7 +160,7 @@ router.patch("/:id", async (req, res, next) => {
     // Some MySQL/MariaDB drivers return JSON columns as a string. Parse it
     // before appending so editing a repair never hides or overwrites saved parts.
     const parts = [...readParts(job.parts)];
-    for (const requestedPart of requestedParts) { const quantity = Number(requestedPart.quantity); const stock = await Stock.findOne({ where: { id: requestedPart.stockId, branchId: req.branchId } }); if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." }); await stock.update({ quantity: stock.quantity - quantity }); parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), total: Number(stock.sellingPrice) * quantity }); }
+    for (const requestedPart of requestedParts) { const quantity = Number(requestedPart.quantity); const stock = await Stock.findOne({ where: { id: requestedPart.stockId, branchId: req.branchId } }); if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." }); await stock.update({ quantity: stock.quantity - quantity }); parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), unitCostCents: stock.costCurrency === 'LKR' ? Math.round(Number(stock.costPrice) * 100) : null, total: Number(stock.sellingPrice) * quantity }); }
     await job.update({ customerName, assetName, issue, assetType, priority, status, promisedDate, parts, customerPhone: typeof req.body.customerPhone === "string" ? req.body.customerPhone.trim() || null : job.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === "string" ? req.body.assetIdentifier.trim() || null : job.assetIdentifier, technician: typeof req.body.technician === "string" ? req.body.technician.trim() || null : job.technician });
     return res.status(200).json({ success: true, message: "Repair job updated.", job: serialize(job) });
   } catch (error) { return next(error); }

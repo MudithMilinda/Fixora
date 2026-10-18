@@ -59,6 +59,7 @@ async function initializeDatabase() {
       defaultValue: 0,
     });
   }
+  if (!userColumns.custom_role_id) await queryInterface.addColumn('users', 'custom_role_id', { type: Sequelize.UUID, allowNull: true });
   if (!userColumns.role) {
     try {
       await queryInterface.addColumn("users", "role", {
@@ -89,6 +90,15 @@ async function initializeDatabase() {
   });
   await addRepairColumn("asset_identifier", { type: Sequelize.STRING(160), allowNull: true });
   await addRepairColumn("parts", { type: Sequelize.JSON, allowNull: true });
+
+  const stockColumns = await queryInterface.describeTable('stocks');
+  if (!stockColumns.cost_currency) await queryInterface.addColumn('stocks', 'cost_currency', { type: Sequelize.STRING(3), allowNull: true });
+
+  const purchaseOrderColumns = await queryInterface.describeTable('purchase_orders');
+  if (!purchaseOrderColumns.received_at) await queryInterface.addColumn('purchase_orders', 'received_at', { type: Sequelize.DATE, allowNull: true });
+
+  const technicianColumns = await queryInterface.describeTable("technicians");
+  if (!technicianColumns.address) await queryInterface.addColumn("technicians", "address", { type: Sequelize.TEXT, allowNull: true });
 
   // Earlier builds could persist an empty string in the JSON parts column.
   // MySQL evaluates that invalid JSON when another field on the same row is
@@ -134,12 +144,12 @@ async function initializeDatabase() {
   await addColumn('users', currentUserColumns, 'company_id', { type: Sequelize.UUID, allowNull: true });
   await addColumn('users', currentUserColumns, 'active_branch_id', { type: Sequelize.UUID, allowNull: true });
   for (const table of ['stocks', 'stock_requests', 'repair_jobs']) { const columns = await queryInterface.describeTable(table); await addColumn(table, columns, 'branch_id', { type: Sequelize.UUID, allowNull: true }); }
+  const legacyUsers = await User.findAll({ where: { companyId: null }, attributes: ['id'] });
   await User.update({ companyId: company.id, activeBranchId: branch.id }, { where: { companyId: null } });
   await sequelize.query('UPDATE stocks SET branch_id = ? WHERE branch_id IS NULL', { replacements: [branch.id] });
   await sequelize.query('UPDATE stock_requests SET branch_id = ? WHERE branch_id IS NULL', { replacements: [branch.id] });
   await sequelize.query('UPDATE repair_jobs SET branch_id = ? WHERE branch_id IS NULL', { replacements: [branch.id] });
-  const users = await User.findAll({ attributes: ['id'] });
-  await Promise.all(users.map((user) => UserBranch.findOrCreate({ where: { userId: user.id, branchId: branch.id } })));
+  await Promise.all(legacyUsers.map((user) => UserBranch.findOrCreate({ where: { userId: user.id, branchId: branch.id } })));
 }
 
 module.exports = { sequelize, initializeDatabase };

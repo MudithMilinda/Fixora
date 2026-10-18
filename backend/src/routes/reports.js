@@ -1,0 +1,91 @@
+const express = require('express');
+const { Op } = require('sequelize');
+const { requireAuth } = require('../middleware/requireAuth');
+const Branch = require('../models/Branch');
+const UserBranch = require('../models/UserBranch');
+const Sale = require('../models/Sale');
+const PurchaseOrder = require('../models/PurchaseOrder');
+const Stock = require('../models/Stock');
+const { calculateReport } = require('../services/profitReport');
+const router = express.Router();
+router.use(requireAuth);
+router.use(async (req, res, next) => {
+  try {
+    const { companyId, id: userId } = req.user;
+    if (!companyId || !req.branchId || !await Branch.findOne({ where: { id: req.branchId, companyId, isActive: true } }) || !await UserBranch.findOne({ where: { userId, branchId: req.branchId } })) return res.status(403).json({ message: 'Select an accessible branch.' });
+    next();
+  } catch (error) { next(error); }
+});
+const adminOnly = (req, res, next) => req.user.customRoleId || !['admin', 'super_admin'].includes(req.user.role) ? res.status(403).json({ message: 'Administrator access required.' }) : next();
+router.get('/profit', async (req, res, next) => {
+  try {
+    const { companyId } = req.user;
+    const start = new Date(req.query.start), end = new Date(req.query.end);
+    if (typeof req.query.start !== 'string' || typeof req.query.end !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(req.query.start) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(req.query.end) || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start >= end) return res.status(400).json({ message: 'Enter a valid date range.' });
+    const scope = { companyId, branchId: req.branchId };
+    const [sales, orders, stocks, undatedOrders] = await Promise.all([
+      Sale.findAll({ where: { ...scope, createdAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['id', 'createdAt', 'customerName', 'subtotalCents', 'discountCents', 'totalCents', 'lines'] }),
+      PurchaseOrder.findAll({ where: { ...scope, status: 'Received', receivedAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['id', 'orderNumber', 'supplierName', 'receivedAt', 'items', 'totalCents', 'currency'] }),
+      Stock.findAll({ where: { branchId: req.branchId }, attributes: ['id', 'name', 'sku', 'quantity', 'costPrice', 'costCurrency'] }),
+      PurchaseOrder.findAll({ where: { ...scope, status: 'Received', receivedAt: null }, attributes: ['id', 'orderNumber', 'supplierName', 'currency', 'totalCents', 'createdAt'] }),
+    ]);
+    const canResolve = !req.user.customRoleId && ['admin', 'super_admin'].includes(req.user.role);
+    const missingSales = canResolve ? sales.flatMap(sale => {
+      const lines = typeof sale.lines === 'string' ? JSON.parse(sale.lines) : sale.lines;
+      return lines.flatMap((line, index) => Number.isSafeInteger(line.unitCostCents) && line.unitCostCents >= 0 ? [] : [{ saleId: sale.id, lineIndex: index, name: line.name, quantity: line.quantity, customerName: sale.customerName, completedAt: sale.createdAt }]);
+    }) : [];
+    const missingStocks = canResolve ? stocks.filter(stock => stock.costCurrency == null && stock.quantity > 0).map(stock => ({ id: stock.id, name: stock.name, sku: stock.sku, quantity: stock.quantity, costPrice: Number(stock.costPrice) })) : [];
+    const details = {
+      sales: sales.map(sale => {
+        const lines = typeof sale.lines === 'string' ? JSON.parse(sale.lines) : sale.lines;
+        const hasMissingCost = lines.some(line => !Number.isSafeInteger(line.unitCostCents) || line.unitCostCents < 0 || !Number.isSafeInteger(line.quantity) || line.quantity < 1);
+        const costCents = lines.reduce((sum, line) => sum + (Number.isSafeInteger(line.unitCostCents) && line.unitCostCents >= 0 && Number.isSafeInteger(line.quantity) && line.quantity > 0 ? line.unitCostCents * line.quantity : 0), 0);
+        return { id: sale.id, completedAt: sale.createdAt, customerName: sale.customerName, subtotalCents: Number(sale.subtotalCents), discountCents: Number(sale.discountCents), totalCents: Number(sale.totalCents), knownCostCents: costCents, grossProfitCents: hasMissingCost ? null : Number(sale.totalCents) - costCents, lines };
+      }),
+      orders: orders.map(order => ({ id: order.id, orderNumber: order.orderNumber, supplierName: order.supplierName, receivedAt: order.receivedAt, currency: order.currency, totalCents: Number(order.totalCents), items: order.items })),
+      stocks: stocks.map(stock => ({ id: stock.id, name: stock.name, sku: stock.sku, quantity: Number(stock.quantity), costPrice: Number(stock.costPrice), costCurrency: stock.costCurrency })),
+    };
+    res.json({ success: true, report: { ...calculateReport(sales, orders, stocks), undatedOrders: undatedOrders.length }, details, canResolve, missingSales, missingStocks, missingOrders: canResolve ? undatedOrders : [] });
+  } catch (error) { next(error); }
+});
+
+router.patch('/missing-sale-cost', adminOnly, async (req, res, next) => {
+  try {
+    const { saleId, lineIndex, unitCost } = req.body;
+    if (typeof saleId !== 'string' || !Number.isInteger(lineIndex) || lineIndex < 0 || typeof unitCost !== 'string' || !/^(?:0|[1-9]\d{0,7})(?:\.\d{1,2})?$/.test(unitCost)) return res.status(400).json({ message: 'Enter a valid cost per unit (up to two decimal places).' });
+    const unitCostCents = Math.round(Number(unitCost) * 100);
+    const outcome = await Sale.sequelize.transaction(async transaction => {
+      const sale = await Sale.findOne({ where: { id: saleId, companyId: req.user.companyId, branchId: req.branchId }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!sale) return 'missing';
+      const lines = typeof sale.lines === 'string' ? JSON.parse(sale.lines) : sale.lines;
+      const line = lines[lineIndex];
+      if (!line) return 'missing';
+      if (line.unitCostCents != null) return 'resolved';
+      const updated = lines.map((item, i) => i === lineIndex ? { ...item, unitCostCents } : item);
+      await sale.update({ lines: updated }, { transaction });
+      return 'saved';
+    });
+    if (outcome === 'missing') return res.status(404).json({ message: 'Sale item not found in this branch.' });
+    if (outcome === 'resolved') return res.status(409).json({ message: 'This cost has already been recorded. Refresh the report.' });
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+router.patch('/missing-stock-currency', adminOnly, async (req, res, next) => {
+  try {
+    const { stockId, currency } = req.body;
+    if (typeof stockId !== 'string' || currency !== 'LKR') return res.status(400).json({ message: 'Confirm the cost currency is LKR.' });
+    const [updated] = await Stock.update({ costCurrency: 'LKR' }, { where: { id: stockId, branchId: req.branchId, costCurrency: null } });
+    if (!updated) return res.status(409).json({ message: 'Stock is unavailable or its currency has already been recorded.' });
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+router.patch('/missing-receipt-date', adminOnly, async (req, res, next) => {
+  try {
+    const { orderId, receivedAt } = req.body;
+    if (typeof orderId !== 'string' || typeof receivedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(receivedAt) || !Number.isFinite(new Date(receivedAt).getTime()) || new Date(receivedAt).getTime() > Date.now()) return res.status(400).json({ message: 'Enter a valid receipt date that is not in the future.' });
+    const [updated] = await PurchaseOrder.update({ receivedAt: new Date(receivedAt) }, { where: { id: orderId, companyId: req.user.companyId, branchId: req.branchId, status: 'Received', receivedAt: null }, silent: true });
+    if (!updated) return res.status(409).json({ message: 'Order is unavailable or its receipt date has already been recorded.' });
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+module.exports = router;
