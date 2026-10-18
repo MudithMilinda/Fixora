@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Sidebar from "../Components/Sidebar";
+import Pagination from "../Components/Pagination";
 import Toast from "../Components/Toast";
 import AddItemModal from "../Components/AddItemModal";
 import EditItemModal from "../Components/EditItemModal";
@@ -11,6 +12,7 @@ type Item = {
     name: string;
     sku: string | null;
     quantity: number;
+    minimumStock: number;
     costPrice: number;
     sellingPrice: number;
 };
@@ -28,10 +30,13 @@ export default function ItemsPage(p: {
         [pendingDelete, setPendingDelete] = useState<Item | null>(null),
         [search, setSearch] = useState(""),
         [toast, setToast] = useState<any>(null);
-    const load = () => api.get("/items").then((r) => setItems(r.data.items));
+    const [page, setPage] = useState(1), [total, setTotal] = useState(0), [loading, setLoading] = useState(true), [revision, setRevision] = useState(0);
+    const load = async () => { setRevision(value => value + 1) };
     useEffect(() => {
-        void load();
-    }, []);
+        let cancelled = false; setLoading(true);
+        const timer = window.setTimeout(() => { api.get('/items', { params: { page, search: search.trim() } }).then(({ data }) => { if (cancelled) return; const last = Math.max(1, Math.ceil(data.total / data.pageSize)); if (page > last) { setPage(last); return } setItems(data.items); setTotal(data.total) }).catch(error => { if (!cancelled) setToast({message:getApiError(error,'Unable to load items.'),tone:'error'}) }).finally(() => { if (!cancelled) setLoading(false) }) }, search ? 250 : 0);
+        return () => { cancelled = true; window.clearTimeout(timer) };
+    }, [page, search, revision]);
     const add = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
@@ -39,6 +44,7 @@ export default function ItemsPage(p: {
             await api.post("/items", {
                 name: f.get("name"),
                 sku: f.get("sku"),
+                minimumStock: Number(f.get("minimumStock")),
                 quantity: 0,
                 costPrice: 0,
                 sellingPrice: 0,
@@ -60,6 +66,7 @@ export default function ItemsPage(p: {
             await api.patch(`/items/${edit.id}`, {
                 name: f.get("name"),
                 sku: f.get("sku"),
+                minimumStock: Number(f.get("minimumStock")),
             });
             setEdit(null);
             await load();
@@ -80,9 +87,7 @@ export default function ItemsPage(p: {
             setToast({ message: getApiError(e, "Unable to delete item."), tone: "error" });
         }
     };
-    const filteredItems = items.filter((item) =>
-        `${item.name} ${item.sku || ""}`.toLowerCase().includes(search.toLowerCase()),
-    );
+    const filteredItems = items;
     return (
         <div className="flex h-dvh w-screen overflow-hidden bg-[#f4f4f5] font-sans text-[#262b3a]">
             {toast && <Toast {...toast} onDismiss={() => setToast(null)} />}
@@ -115,7 +120,7 @@ export default function ItemsPage(p: {
                 </header>
                 <form className="mt-5 flex max-w-md items-center gap-2.5 rounded-xl border border-[#e9e9ee] bg-white px-3.5 py-2.5 text-sm text-[#878c99] shadow-sm" onSubmit={(e) => e.preventDefault()}>
                     <span aria-hidden="true">⌕</span>
-                    <input className="min-w-0 flex-1 bg-transparent font-normal outline-none placeholder:text-[#9ca0aa]" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item or SKU…" aria-label="Search items" />
+                    <input className="min-w-0 flex-1 bg-transparent font-normal outline-none placeholder:text-[#9ca0aa]" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value) }} placeholder="Search item or SKU…" aria-label="Search items" />
                 </form>
                 <section className="mt-6 rounded-[18px] border border-[#eceaf2] bg-white/75 p-5 shadow-sm">
                     <table className="w-full text-left text-sm">
@@ -123,6 +128,7 @@ export default function ItemsPage(p: {
                             <tr>
                                 <th>Item</th>
                                 <th>SKU</th>
+                                <th>Minimum stock</th>
                                 <th className="text-right">Actions</th>
                             </tr>
                         </thead>
@@ -131,6 +137,7 @@ export default function ItemsPage(p: {
                                 <tr className="border-t border-[#f0f1f4]" key={i.id}>
                                     <td className="py-4 font-semibold">{i.name}</td>
                                     <td>{i.sku || "Not set"}</td>
+                                    <td>{i.minimumStock}</td>
                                     <td className="text-right">
                                         <div className="flex items-center justify-end gap-1.5">
                                             <button
@@ -179,6 +186,7 @@ export default function ItemsPage(p: {
                             ))}
                         </tbody>
                     </table>
+                    <Pagination page={page} total={total} disabled={loading} onPageChange={setPage} />
                 </section>
                 {open && <AddItemModal onClose={() => setOpen(false)} onSubmit={add} />}{" "}
                 {edit && (

@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { Op } = require('sequelize');
 const StockMovement = require('../models/StockMovement');
 const Stock = require('../models/Stock');
 const { RepairJob } = require('../models/RepairJob');
@@ -34,4 +35,50 @@ test('price history falls back to batch when the SKU is missing', async t => {
   t.mock.method(StockMovement, 'findOne', async () => ({ sku: null, stockId: 'batch' }));
   t.mock.method(StockMovement, 'findAll', async ({ where }) => { assert.deepEqual(where, { companyId: 'company', branchId: 'branch', stockId: 'batch' }); return []; });
   const res = reply(); await handler({ user: { companyId: 'company' }, branchId: 'branch', params: { id: 'movement' } }, res, e => { throw e }); assert.equal(res.body.match, 'batch');
+});
+test('date range applies to both movement list and item history', async t => {
+  const router = require('../routes/stockMovements');
+  const list = router.stack.find(l => l.route?.path === '/').route.stack[0].handle;
+  const history = router.stack.find(l => l.route?.path === '/:id/history').route.stack[0].handle;
+  const query = { start: '2026-01-24T18:30:00.000Z', end: '2026-01-26T18:30:00.000Z' };
+  const req = { user: { companyId: 'company' }, branchId: 'branch', params: { id: 'movement' }, query };
+  t.mock.method(StockMovement, 'findOne', async () => ({ sku: 'SKU-1', stockId: 'batch' }));
+  t.mock.method(StockMovement, 'findAll', async ({ where }) => {
+    assert.equal(where.companyId, 'company'); assert.equal(where.branchId, 'branch');
+    assert.equal(where.createdAt[Op.gte].toISOString(), query.start);
+    assert.equal(where.createdAt[Op.lt].toISOString(), query.end);
+    return [];
+  });
+  for (const handler of [list, history]) {
+    const res = reply(); await handler(req, res, e => { throw e }); assert.equal(res.statusCode, 200);
+  }
+  assert.equal(StockMovement.findAll.mock.callCount(), 2);
+});
+test('invalid date ranges are rejected', async t => {
+  const router = require('../routes/stockMovements');
+  const list = router.stack.find(l => l.route?.path === '/').route.stack[0].handle;
+  t.mock.method(StockMovement, 'findAll', async () => { throw new Error('unexpected query'); });
+  const res = reply();
+  await list({ user: { companyId: 'company' }, branchId: 'branch', query: { start: '2026-02-01T00:00:00.000Z', end: '2026-01-01T00:00:00.000Z' } }, res, e => { throw e });
+  assert.equal(res.statusCode, 400);
+});
+test('stock adjustment locks the branch batch and records reason and user in the same transaction', async t => {
+  const router = require('../routes/stocks');
+  const handler = router.stack.find(l => l.route?.path === '/:id/adjustments').route.stack[0].handle;
+  const transaction = { LOCK: { UPDATE: 'UPDATE' } };
+  const stock = { id: 'batch', name: 'Part', sku: 'P', quantity: 5, costPrice: '100', costCurrency: 'LKR', sellingPrice: '150', update: async (values, options) => { assert.equal(options.transaction, transaction); stock.quantity = values.quantity; } };
+  t.mock.method(Stock.sequelize, 'transaction', async fn => fn(transaction));
+  t.mock.method(Stock, 'findOne', async options => { assert.deepEqual(options.where, { id: 'batch', branchId: 'branch', isArchived: false }); assert.equal(options.lock, 'UPDATE'); return stock; });
+  t.mock.method(StockMovement, 'create', async (values, options) => { assert.equal(options.transaction, transaction); assert.equal(values.kind, 'adjustment'); assert.equal(values.quantityChange, -2); assert.equal(values.balanceAfter, 3); assert.equal(values.adjustmentReason, 'damaged'); assert.equal(values.adjustmentNote, 'Broken'); assert.equal(values.createdByName, 'Admin'); });
+  const res = reply(); await handler({ user: { id: 'user', companyId: 'company', fullName: 'Admin' }, branchId: 'branch', params: { id: 'batch' }, body: { change: -2, reason: 'damaged', note: ' Broken ' } }, res, e => { throw e });
+  assert.equal(res.statusCode, 200); assert.equal(res.body.item.quantity, 3);
+});
+test('adjustment rejects invalid inputs and insufficient stock', async t => {
+  const handler = require('../routes/stocks').stack.find(l => l.route?.path === '/:id/adjustments').route.stack[0].handle;
+  const req = { user: { id: 'user', companyId: 'company' }, branchId: 'branch', params: { id: 'batch' }, body: { change: -2, reason: 'other', note: '' } };
+  let res = reply(); await handler(req, res, e => { throw e }); assert.equal(res.statusCode, 400);
+  t.mock.method(Stock.sequelize, 'transaction', async fn => fn({ LOCK: { UPDATE: 'UPDATE' } }));
+  t.mock.method(Stock, 'findOne', async () => ({ quantity: 1 }));
+  t.mock.method(StockMovement, 'create', async () => { throw new Error('unexpected movement'); });
+  req.body = { change: -2, reason: 'lost' }; res = reply(); await handler(req, res, e => { throw e }); assert.equal(res.statusCode, 400);
 });

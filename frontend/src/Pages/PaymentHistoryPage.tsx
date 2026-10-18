@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../Components/Sidebar";
+import Pagination from "../Components/Pagination";
 import SaleInvoiceModal from "../Components/SaleInvoiceModal";
 import type { AuthUser } from "../types/auth";
 import api, { getApiError } from "../api/axios";
@@ -21,18 +22,11 @@ export default function PaymentHistoryPage(props: {
   const [error, setError] = useState('');
   const [legacySales] = useState(getCompletedSales);
   const [showLegacy, setShowLegacy] = useState(false);
-  useEffect(() => { api.get('/sales').then(({ data }) => setSales(data.sales)).catch(error => setError(getApiError(error, 'Unable to load payment history.'))).finally(() => setLoading(false)); }, []);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1), [total, setTotal] = useState(0);
   const [viewingSale, setViewingSale] = useState<CompletedSale | null>(null);
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return sales;
-    return sales.filter((sale) =>
-      `${sale.id} ${sale.customerName} ${sale.customerPhone} ${sale.lines.map((line) => line.name).join(" ")}`
-        .toLowerCase()
-        .includes(term),
-    );
-  }, [sales, search]);
+  useEffect(() => { let cancelled = false; setLoading(true); setError(''); const timer = window.setTimeout(() => { api.get('/sales', {params:{page,search:search.trim()}}).then(({data}) => { if(cancelled)return; const last=Math.max(1,Math.ceil(data.total/data.pageSize)); if(page>last){setPage(last);return} setSales(data.sales); setTotal(data.total) }).catch(error => {if(!cancelled)setError(getApiError(error,'Unable to load payment history.'))}).finally(()=>{if(!cancelled)setLoading(false)}) }, search ? 250 : 0); return () => {cancelled=true;window.clearTimeout(timer)} }, [page, search]);
+  const filtered = sales;
   const totalAmount = filtered.reduce((sum, sale) => sum + sale.total, 0);
   const totalItems = filtered.reduce(
     (sum, sale) => sum + sale.lines.reduce((lineTotal, line) => lineTotal + line.quantity, 0),
@@ -64,12 +58,12 @@ export default function PaymentHistoryPage(props: {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold">Completed sales</h2>
-              <p className="mt-1 text-xs text-[#747a89]">{filtered.length} {filtered.length === 1 ? "sale" : "sales"} shown</p>
+              <p className="mt-1 text-xs text-[#747a89]">{total} {total === 1 ? "sale" : "sales"} found</p>
             </div>
             <label className="relative block w-full max-w-[340px]">
               <span className="sr-only">Search payment history</span>
               <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#89909d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
-              <input value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 w-full rounded-[10px] border border-[#e1e3e8] bg-white pl-9 pr-3 text-sm outline-none placeholder:text-[#9ca0aa] focus:border-[#171719]" placeholder="Search customer or sale…" />
+              <input value={search} onChange={(event) => { setPage(1); setSearch(event.target.value) }} className="h-10 w-full rounded-[10px] border border-[#e1e3e8] bg-white pl-9 pr-3 text-sm outline-none placeholder:text-[#9ca0aa] focus:border-[#171719]" placeholder="Search customer or sale…" />
             </label>
           </div>
 
@@ -96,10 +90,11 @@ export default function PaymentHistoryPage(props: {
 
           {filtered.length > 0 && (
             <footer className="mt-4 flex flex-wrap justify-end gap-x-7 gap-y-2 border-t border-[#eceef1] pt-4 text-sm">
-              <span className="text-[#747a89]">Total items <strong className="ml-2 text-[#262b3a]">{totalItems}</strong></span>
-              <span className="text-[#747a89]">Total amount <strong className="ml-2 tabular-nums text-[#262b3a]">{money(totalAmount)}</strong></span>
+              <span className="text-[#747a89]">Page items <strong className="ml-2 text-[#262b3a]">{totalItems}</strong></span>
+              <span className="text-[#747a89]">Page amount <strong className="ml-2 tabular-nums text-[#262b3a]">{money(totalAmount)}</strong></span>
             </footer>
           )}
+          <Pagination page={page} total={total} disabled={loading} onPageChange={setPage} />
         </section>
       </main>
       {viewingSale && <SaleInvoiceModal sale={viewingSale} closeLabel="Close invoice" onClose={() => setViewingSale(null)} />}

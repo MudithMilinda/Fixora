@@ -26,6 +26,42 @@ test('report queries sales, receipts and inventory within active branch', async 
 });
 function route(path) { return require('../routes/reports').stack.find(layer => layer.route?.path === path).route.stack; }
 const reply = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this }, json(value) { this.body = value; return this } });
+test('stock valuation scopes active stock to branch and excludes unknown currencies from LKR total', async t => {
+  const Stock = require('../models/Stock');
+  const { Op } = require('sequelize');
+  t.mock.method(Stock, 'findAndCountAll', async ({ where, limit, offset }) => {
+    assert.equal(where.branchId, 'branch'); assert.equal(where.isArchived, false); assert.equal(where.quantity[Op.gt], 0);
+    assert.equal(limit, 10); assert.equal(offset, 10); assert.ok(where[Op.or]);
+    return { count: 12, rows: [{ id: 'a', name: 'Part', sku: 'A', quantity: 3, costPrice: '12.50', costCurrency: 'LKR', sellingPrice: '20.00' }, { id: 'b', name: 'Other', sku: null, quantity: 2, costPrice: '5.00', costCurrency: null, sellingPrice: '10.00' }] };
+  });
+  t.mock.method(Stock, 'findOne', async ({ where }) => { assert.equal(where.branchId, 'branch'); assert.equal(where[Op.or], undefined); return { totalCostCents: '3750', sellingValueCents: '8000', excludedBatches: '1', totalUnits: '5', totalBatches: '2' }; });
+  const res = reply(); await route('/stock-valuation')[0].handle({ branchId: 'branch', query: { page: '2', search: 'Part' } }, res, e => { throw e });
+  assert.equal(res.body.totalCostCents, 3750); assert.equal(res.body.sellingValueCents, 8000); assert.equal(res.body.excludedBatches, 1); assert.equal(res.body.total, 12); assert.equal(res.body.rows[1].costValueCents, null);
+});
+test('supplier purchase history scopes received orders, dates and item search before paging', async t => {
+  const Order = require('../models/PurchaseOrder'); const { Op } = require('sequelize');
+  t.mock.method(Order, 'findAndCountAll', async options => {
+    assert.equal(options.where.companyId, 'company'); assert.equal(options.where.branchId, 'branch'); assert.equal(options.where.status, 'Received');
+    assert.equal(options.where.supplierName[Op.like], '%Vendor%'); assert.equal(options.where[Op.or].length, 2); assert.equal(options.offset, 10); assert.equal(options.limit, 10);
+    assert.equal(options.where.receivedAt[Op.gte].toISOString(), '2026-01-01T00:00:00.000Z');
+    return { count: 11, rows: [{ id: 'o', orderNumber: 'PO-1', supplierName: 'Vendor', currency: 'LKR', receivedAt: new Date('2026-01-02T00:00:00Z'), items: [{ itemName: 'Screen', sku: 'S', unitPriceCents: 1000 }, { itemName: 'Cable', sku: 'C', unitPriceCents: 200 }] }] };
+  });
+  const res = reply(); await route('/supplier-purchases')[0].handle({ user: { companyId: 'company' }, branchId: 'branch', query: { page: '2', item: 'screen', supplier: 'Vendor', start: '2026-01-01T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z' } }, res, e => { throw e });
+  assert.equal(res.body.total, 11); assert.equal(res.body.orders[0].items.length, 1); assert.equal(res.body.orders[0].items[0].unitPriceCents, 1000);
+});
+test('supplier purchase history rejects reversed dates', async () => {
+  const res = reply(); await route('/supplier-purchases')[0].handle({ user: { companyId: 'company' }, branchId: 'branch', query: { start: '2026-02-01T00:00:00.000Z', end: '2026-01-01T00:00:00.000Z' } }, res, e => { throw e }); assert.equal(res.statusCode, 400);
+});
+test('supplier purchase filter uses the selected supplier identity', async t => {
+  const Order = require('../models/PurchaseOrder');
+  t.mock.method(Order, 'findAndCountAll', async options => { assert.equal(options.where.supplierId, 'supplier-id'); assert.equal(options.where.companyId, 'company'); assert.equal(options.where.branchId, 'branch'); return { count: 0, rows: [] }; });
+  const res = reply(); await route('/supplier-purchases')[0].handle({ user: { companyId: 'company' }, branchId: 'branch', query: { supplierId: 'supplier-id' } }, res, e => { throw e }); assert.equal(res.body.total, 0);
+});
+test('purchase supplier dropdown uses only received orders in the current branch', async t => {
+  const Order = require('../models/PurchaseOrder');
+  t.mock.method(Order, 'findAll', async ({ where }) => { assert.deepEqual(where, { companyId: 'company', branchId: 'branch', status: 'Received' }); return [{ supplierId: 's', supplierName: 'Supplier' }, { supplierId: 's', supplierName: 'Supplier' }]; });
+  const res = reply(); await route('/supplier-purchase-suppliers')[0].handle({ user: { companyId: 'company' }, branchId: 'branch' }, res, e => { throw e }); assert.deepEqual(res.body.suppliers, [{ id: 's', name: 'Supplier' }]);
+});
 test('only administrators can correct financial records', () => {
   const guard = route('/missing-sale-cost')[0].handle;
   const res = reply(); guard({ user: { role: 'admin', customRoleId: 'role' } }, res, () => assert.fail('custom role must be rejected'));

@@ -9,6 +9,8 @@ import InventoryPage from './Pages/InventoryPage'
 import ItemsPage from './Pages/ItemsPage'
 import UsersRolesPage from './Pages/UsersRolesPage'
 import ProfitReportPage from './Pages/ProfitReportPage'
+import StockValuationPage from './Pages/StockValuationPage'
+import SupplierPurchasesPage from './Pages/SupplierPurchasesPage'
 import BranchesPage from './Pages/BranchesPage'
 import PurchaseRequestsPage from './Pages/PurchaseRequestsPage'
 import SuppliersPage from './Pages/SuppliersPage'
@@ -22,9 +24,11 @@ import type { AuthUser } from './types/auth'
 import api from './api/axios'
 import { CompanyBrandingProvider } from './CompanyBrandingContext'
 
-type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements'
+type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases'
 
 function pageFromPath(pathname: string): AppPage {
+  if (pathname === '/supplier-purchases') return 'supplierPurchases'
+  if (pathname === '/stock-valuation') return 'stockValuation'
   if (pathname === '/stock-movements') return 'stockMovements'
   if (pathname === '/profit-report') return 'profitReport'
   if (pathname === '/users-roles') return 'usersRoles'
@@ -47,6 +51,8 @@ function pageFromPath(pathname: string): AppPage {
 }
 
 function pathForPage(page: AppPage) {
+  if (page === 'supplierPurchases') return '/supplier-purchases'
+  if (page === 'stockValuation') return '/stock-valuation'
   if (page === 'stockMovements') return '/stock-movements'
   if (page === 'profitReport') return '/profit-report'
   if (page === 'usersRoles') return '/users-roles'
@@ -107,6 +113,8 @@ function App() {
 
   if (isSignedIn && user) {
     const renderPage = () => {
+    if (currentPage === 'supplierPurchases') return <SupplierPurchasesPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'stockValuation') return <StockValuationPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'stockMovements') return <StockMovementPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'profitReport') return <ProfitReportPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'usersRoles') return <UsersRolesPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />

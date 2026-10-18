@@ -36,7 +36,7 @@ export default function PurchaseRequestsPage({
 }) {
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [items, setItems] = useState<Item[]>([]);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(() => new URLSearchParams(window.location.search).get('restock') === '1');
   const [isLoading, setIsLoading] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);

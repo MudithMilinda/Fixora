@@ -1,4 +1,5 @@
 import AppSelect from '../Components/AppSelect'
+import Pagination from '../Components/Pagination'
 import { useEffect, useState } from "react";
 import Sidebar from "../Components/Sidebar";
 import ReceiptModal from "../Components/RepairReceiptModal";
@@ -37,27 +38,19 @@ function RepairHistoryPage({
     null,
   );
 
-  async function loadHistory() {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (search.trim()) params.set("search", search.trim());
-      if (status) params.set("status", status);
-      const { data } = await api.get(`/repairs/history?${params.toString()}`);
-      setJobs(data.jobs);
-    } catch (error) {
-      setToast({
-        message: getApiError(error, "Unable to load repair history."),
-        tone: "error",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
+  const [page, setPage] = useState(1), [total, setTotal] = useState(0)
   useEffect(() => {
-    void loadHistory();
-  }, [status]);
+    let cancelled = false; setIsLoading(true)
+    const timer = window.setTimeout(() => {
+      api.get('/repairs/history', { params: { page, search: search.trim(), status, from: fromDate, to: toDate } }).then(({ data }) => {
+        if (cancelled) return
+        const last = Math.max(1, Math.ceil(data.total / data.pageSize))
+        if (page > last) { setPage(last); return }
+        setJobs(data.jobs); setTotal(data.total)
+      }).catch(error => { if (!cancelled) setToast({ message: getApiError(error, 'Unable to load repair history.'), tone: 'error' }) }).finally(() => { if (!cancelled) setIsLoading(false) })
+    }, search ? 250 : 0)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [page, search, status, fromDate, toDate]);
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 4000);
@@ -69,10 +62,7 @@ function RepairHistoryPage({
           new Date(value),
         )
       : "Not set";
-  const filteredJobs = jobs.filter((job) => {
-    const date = job.promisedDate ? job.promisedDate.slice(0, 10) : "";
-    return (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
-  });
+  const filteredJobs = jobs;
   const partsTotal = (job: RepairJob) => (job.parts || []).reduce((total, part) => total + part.total, 0);
 
   return (
@@ -111,14 +101,14 @@ function RepairHistoryPage({
               className="flex min-w-[240px] flex-1 items-center gap-2.5 rounded-xl border border-[#e9e9ee] bg-white px-3.5 py-2.5 text-sm text-[#878c99]"
               onSubmit={(event) => {
                 event.preventDefault();
-                void loadHistory();
+                setPage(1);
               }}
             >
               <span>⌕</span>
               <input
                 className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#9ca0aa]"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => { setPage(1); setSearch(event.target.value) }}
                 placeholder="Search job, customer or asset…"
               />
               <button
@@ -130,7 +120,7 @@ function RepairHistoryPage({
             <div className="min-w-[180px]">
               <AppSelect aria-label="Filter repair history"
                 value={status}
-                onChange={(event) => setStatus(event.target.value)}
+                onChange={(event) => { setPage(1); setStatus(event.target.value) }}
               >
                 <option value="">All history</option>
                 {historyStatuses.map((item) => (
@@ -138,8 +128,8 @@ function RepairHistoryPage({
                 ))}
               </AppSelect>
             </div>
-            <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} aria-label="From date" />
-            <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} aria-label="To date" />
+            <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={fromDate} onChange={(event) => { setPage(1); setFromDate(event.target.value) }} aria-label="From date" />
+            <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={toDate} onChange={(event) => { setPage(1); setToDate(event.target.value) }} aria-label="To date" />
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[760px] border-separate border-spacing-0 text-left">
@@ -218,9 +208,7 @@ function RepairHistoryPage({
               </tbody>
             </table>
           </div>
-          <p className="mt-4 border-t border-[#f0f1f4] pt-4 text-xs text-[#7b8190]">
-            {filteredJobs.length} repair job{filteredJobs.length === 1 ? "" : "s"} shown
-          </p>
+          <Pagination page={page} total={total} disabled={isLoading} onPageChange={setPage} />
         </section>
       </main>
       {viewJob && <ReceiptModal job={viewJob} onClose={() => setViewJob(null)} />}

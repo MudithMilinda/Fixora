@@ -1,3 +1,8 @@
+import { useEffect, useState } from 'react'
+import api from '../api/axios'
+
+type LowStock = { itemId: string; name: string; sku: string | null; currentStock: number; minimumStock: number }
+
 const stats = [
     { title: 'Total Employees', value: '150', secondary: '50', accent: '#171719', label: 'Full Time Employees', total: '50', tone: 'neutral' },
     { title: 'Attendance Overview', value: '90%', secondary: '2%', accent: '#77777c', label: 'This month', total: '50', tone: 'neutral' },
@@ -22,8 +27,11 @@ const employees = [
 ]
 
 function Dashboard() {
+    const [lowStock, setLowStock] = useState<LowStock[] | null>(null)
+    const [lowStockError, setLowStockError] = useState(false)
+    useEffect(() => { let active = true; api.get('/stock-requests/low-stock').then(({ data }) => { if (active) setLowStock(data.items) }).catch(() => { if (active) setLowStockError(true) }); return () => { active = false } }, [])
     return (
-        <main className="flex-1 min-h-full bg-[#f5f5f7] p-[20px_20px_20px_22px]">
+        <main className="flex-1 min-h-0 overflow-y-auto bg-[#f5f5f7] p-[20px_20px_20px_22px]">
             <header className="flex items-center justify-between gap-4 mb-3.5">
                 <div className="flex-1 max-w-[480px] h-[42px] bg-white/70 border border-[#eceaf3] rounded-xl flex items-center gap-2.5 px-3.5 text-[#7b8190] text-[0.9rem] shadow-sm">
                     <svg className="w-4 h-4 stroke-current fill-none" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 1 0 14a7 7 0 0 1 0-14zm9 20l-5.2-5.2" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -51,6 +59,11 @@ function Dashboard() {
                 <h1 className="m-0 text-[clamp(1.8rem,2vw,2.3rem)] leading-tight font-bold text-[#22262d]">Good Morning, Turja Sen</h1>
                 <div className="ml-auto px-3 py-2 rounded-xl bg-white/60 border border-[#ebedf3] text-[#7b8190] text-[0.8rem]">01Sep - 15 Sep 2024</div>
                 <button className="bg-[#171719] hover:bg-[#303034] text-white rounded-xl px-4 py-2.5 font-semibold shadow-[0_12px_24px_rgba(23,23,25,0.14)]">Export Data</button>
+            </section>
+
+            <section className="mb-4 rounded-[18px] border border-[#eadfc8] bg-white p-5 shadow-sm" aria-labelledby="low-stock-title">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="low-stock-title" className="text-base font-semibold text-[#262b3a]">Low stock alerts</h2><p className="mt-1 text-xs text-[#747a89]">Items at or below their minimum stock in this branch.</p></div><a href="/purchase-requests?restock=1" className="rounded-xl bg-[#171719] px-4 py-2.5 text-xs font-semibold text-white">Create purchase request</a></div>
+                {lowStockError ? <p role="alert" className="mt-4 text-sm text-red-700">Unable to load low stock alerts.</p> : lowStock === null ? <p className="mt-4 text-sm text-[#747a89]">Loading stock alerts…</p> : lowStock.length === 0 ? <p className="mt-4 text-sm text-[#747a89]">No low stock items in this branch.</p> : <div className="mt-4 max-h-64 overflow-auto"><ul className="divide-y divide-[#eef0f3]">{lowStock.map(item => <li key={item.itemId} className="flex items-center justify-between gap-4 py-3 text-sm"><div><span className="font-semibold">{item.name}</span><span className="ml-2 text-xs text-[#747a89]">{item.sku || 'No SKU'}</span></div><span className="whitespace-nowrap text-xs text-[#9a6214]">{item.currentStock} available · minimum {item.minimumStock}</span></li>)}</ul></div>}
             </section>
 
             <section className="grid grid-cols-3 gap-4 mb-4 max-[1100px]:grid-cols-1">

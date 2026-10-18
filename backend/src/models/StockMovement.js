@@ -7,7 +7,7 @@ module.exports = sequelize.define('StockMovement', {
   stockId: { type: DataTypes.UUID, allowNull: false, field: 'stock_id' },
   itemName: { type: DataTypes.STRING(160), allowNull: false, field: 'item_name' },
   sku: { type: DataTypes.STRING(64), allowNull: true },
-  kind: { type: DataTypes.ENUM('manual_add', 'purchase', 'sale', 'repair', 'delete'), allowNull: false },
+  kind: { type: DataTypes.ENUM('manual_add', 'purchase', 'sale', 'repair', 'delete', 'adjustment'), allowNull: false },
   quantityChange: { type: DataTypes.INTEGER, allowNull: false, field: 'quantity_change' },
   balanceAfter: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, field: 'balance_after' },
   unitCost: { type: DataTypes.DECIMAL(12, 2), allowNull: false, field: 'unit_cost' },
@@ -16,4 +16,7 @@ module.exports = sequelize.define('StockMovement', {
   referenceId: { type: DataTypes.UUID, allowNull: true, field: 'reference_id' },
   referenceLabel: { type: DataTypes.STRING(100), allowNull: true, field: 'reference_label' },
   createdBy: { type: DataTypes.UUID, allowNull: false, field: 'created_by' },
+  createdByName: { type: DataTypes.STRING(120), allowNull: true, field: 'created_by_name' },
+  adjustmentReason: { type: DataTypes.STRING(40), allowNull: true, field: 'adjustment_reason' },
+  adjustmentNote: { type: DataTypes.STRING(500), allowNull: true, field: 'adjustment_note' },
 }, { tableName: 'stock_movements', underscored: true, updatedAt: false, indexes: [{ fields: ['company_id', 'branch_id', 'created_at'] }, { fields: ['branch_id', 'stock_id'] }] });

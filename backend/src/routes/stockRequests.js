@@ -5,9 +5,9 @@ const StockRequest = require('../models/StockRequest');
 const Item = require('../models/Item');
 const Stock = require('../models/Stock');
 const { RepairJob } = require('../models/RepairJob');
+const { calculateLowStock } = require('../services/lowStock');
 
 const router = express.Router();
-const LOW_STOCK_THRESHOLD = 4;
 router.use(requireAuth);
 
 const serialize = (request) => ({ id: request.id, itemId: request.itemId, itemName: request.itemName, sku: request.sku, quantity: request.quantity, note: request.note, status: request.status, createdAt: request.createdAt });
@@ -24,20 +24,11 @@ router.get('/low-stock', async (req, res, next) => {
     const since = new Date();
     since.setDate(since.getDate() - 30);
     const [stocks, repairJobs] = await Promise.all([
-      Stock.findAll({ where: { branchId: req.branchId, itemId: { [Op.ne]: null }, quantity: { [Op.lte]: LOW_STOCK_THRESHOLD } }, order: [['quantity', 'ASC'], ['name', 'ASC']] }),
+      Stock.findAll({ where: { branchId: req.branchId, isArchived: false, itemId: { [Op.ne]: null } }, order: [['quantity', 'ASC'], ['name', 'ASC']] }),
       RepairJob.findAll({ where: { branchId: req.branchId, createdAt: { [Op.gte]: since } }, attributes: ['parts'] }),
     ]);
-    const monthlyUsage = new Map();
-    repairJobs.forEach((job) => {
-      const parts = Array.isArray(job.parts) ? job.parts : [];
-      parts.forEach((part) => {
-        if (part?.stockId) monthlyUsage.set(part.stockId, (monthlyUsage.get(part.stockId) || 0) + (Number(part.quantity) || 0));
-      });
-    });
-    res.json({ success: true, threshold: LOW_STOCK_THRESHOLD, items: stocks.map((stock) => {
-      const usage = monthlyUsage.get(stock.id) || 0;
-      return { id: stock.id, itemId: stock.itemId, name: stock.name, sku: stock.sku, currentStock: stock.quantity, monthlyUsage: usage, suggestedOrderQty: Math.max(1, usage || LOW_STOCK_THRESHOLD - stock.quantity) };
-    }) });
+    const items = await Item.findAll({ where: { id: [...new Set(stocks.map(stock => stock.itemId))] }, attributes: ['id', 'name', 'sku', 'minimumStock'] });
+    res.json({ success: true, items: calculateLowStock(stocks, items, repairJobs) });
   } catch (error) { next(error); }
 });
 
@@ -50,7 +41,7 @@ router.post('/purchase-list', async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Select at least one low-stock item.' });
     }
     const ids = [...new Set(entries.map((entry) => entry.stockId).filter((id) => typeof id === 'string'))];
-    const stocks = await Stock.findAll({ where: { id: ids, branchId: req.branchId }, transaction });
+    const stocks = await Stock.findAll({ where: { id: ids, branchId: req.branchId, isArchived: false }, transaction });
     if (stocks.length !== ids.length) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'One or more selected stock items are unavailable in this branch.' });

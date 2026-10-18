@@ -6,6 +6,8 @@ const Stock = require('../models/Stock');
 const { recordMovement } = require('../services/stockMovement');
 const Sale = require('../models/Sale');
 const { RepairJob } = require('../models/RepairJob');
+const { Op, where: sqlWhere, cast, col } = require('sequelize');
+const { pagination } = require('../services/pagination');
 const router = express.Router();
 const methods = ['Cash', 'Credit card', 'Debit card', 'Bank transfer'];
 const bad = message => Object.assign(new Error(message), { status: 400 });
@@ -24,7 +26,7 @@ router.use(requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 router.get('/', async (req, res, next) => {
-  try { const sales = await Sale.findAll({ where: { companyId: req.user.companyId, branchId: req.branchId }, order: [['createdAt', 'DESC']] }); res.json({ success: true, sales: sales.map(serialize) }); } catch (error) { next(error); }
+  try { const paging = pagination(req.query); const search = typeof req.query?.search === 'string' ? req.query.search.trim().slice(0,160) : ''; const where = { companyId: req.user.companyId, branchId: req.branchId, ...(search ? { [Op.or]: [{ id: { [Op.like]: `%${search}%` } }, { customerName: { [Op.like]: `%${search}%` } }, { customerPhone: { [Op.like]: `%${search}%` } }, sqlWhere(cast(col('lines'), 'CHAR'), { [Op.like]: `%${search}%` })] } : {}) }; const order = [['createdAt', 'DESC'], ['id','DESC']]; if (paging) { const result = await Sale.findAndCountAll({ where, order, limit:paging.limit, offset:paging.offset }); return res.json({ success:true, sales:result.rows.map(serialize), total:result.count, page:paging.page, pageSize:paging.pageSize }); } const sales = await Sale.findAll({ where, order }); res.json({ success: true, sales: sales.map(serialize) }); } catch (error) { if(error.status===400)return res.status(400).json({message:error.message}); next(error); }
 });
 router.post('/', async (req, res, next) => {
   try {
@@ -46,7 +48,7 @@ router.post('/', async (req, res, next) => {
       }
       if (inputLines.some(line => !line || typeof line !== 'object') || inputPayments.some(payment => !payment || typeof payment !== 'object')) throw bad('Invalid sale details.');
       const stockIds = [...new Set(inputLines.filter(l => l.type === 'stock').map(l => l.stockId))].sort();
-      const stocks = stockIds.length ? await Stock.findAll({ where: { id: stockIds, branchId: req.branchId }, transaction, lock: transaction.LOCK.UPDATE, order: [['id', 'ASC']] }) : [];
+      const stocks = stockIds.length ? await Stock.findAll({ where: { id: stockIds, branchId: req.branchId, isArchived: false }, transaction, lock: transaction.LOCK.UPDATE, order: [['id', 'ASC']] }) : [];
       const stockMap = new Map(stocks.map(stock => [stock.id, stock]));
       const usedStocks = new Set(), usedParts = new Set();
       const lines = [];

@@ -93,6 +93,15 @@ async function initializeDatabase() {
 
   const stockColumns = await queryInterface.describeTable('stocks');
   if (!stockColumns.cost_currency) await queryInterface.addColumn('stocks', 'cost_currency', { type: Sequelize.STRING(3), allowNull: true });
+  if (!stockColumns.is_archived) {
+    await queryInterface.addColumn('stocks', 'is_archived', { type: Sequelize.BOOLEAN, allowNull: false, defaultValue: false });
+    await sequelize.query(`UPDATE stocks old_stock JOIN stocks active_stock ON old_stock.branch_id = active_stock.branch_id AND ((old_stock.item_id IS NOT NULL AND old_stock.item_id = active_stock.item_id) OR (old_stock.item_id IS NULL AND active_stock.item_id IS NULL AND old_stock.sku IS NOT NULL AND old_stock.sku <> '' AND old_stock.sku = active_stock.sku)) SET old_stock.is_archived = 1 WHERE old_stock.quantity = 0 AND active_stock.quantity > 0`);
+  }
+  const movementColumns = await queryInterface.describeTable('stock_movements');
+  if (!movementColumns.kind.type.toLowerCase().includes("'adjustment'")) await queryInterface.changeColumn('stock_movements', 'kind', { type: Sequelize.ENUM('manual_add', 'purchase', 'sale', 'repair', 'delete', 'adjustment'), allowNull: false });
+  for (const [name, length] of [['created_by_name', 120], ['adjustment_reason', 40], ['adjustment_note', 500]]) {
+    if (!movementColumns[name]) await queryInterface.addColumn('stock_movements', name, { type: Sequelize.STRING(length), allowNull: true });
+  }
 
   const purchaseOrderColumns = await queryInterface.describeTable('purchase_orders');
   if (!purchaseOrderColumns.received_at) await queryInterface.addColumn('purchase_orders', 'received_at', { type: Sequelize.DATE, allowNull: true });
@@ -113,6 +122,7 @@ async function initializeDatabase() {
   }
 
   const itemColumns = await queryInterface.describeTable("items");
+  if (!itemColumns.minimum_stock) await queryInterface.addColumn('items', 'minimum_stock', { type: Sequelize.INTEGER.UNSIGNED, allowNull: false, defaultValue: 4 });
   const itemIndexes = await queryInterface.showIndex("items");
   const skuIndex = itemIndexes.find(
     (index) =>

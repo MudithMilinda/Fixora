@@ -5,7 +5,6 @@ import PurchaseItemSelect from "./PurchaseItemSelect";
 type Item = { id: string; name: string; sku: string | null; quantity: number };
 type Line = { item: Item; quantity: string };
 type LowStockResponse = {
-  threshold: number;
   items: { itemId: string; name: string; sku: string | null; currentStock: number; suggestedOrderQty: number }[];
 };
 
@@ -70,9 +69,9 @@ export default function AddPurchaseRequestModal({
       }
       setLines((current) => [...current, ...additions]);
       setLowStockMessage(!data.items.length
-        ? `No low-stock items found in this branch (stock ${data.threshold} or less).`
+        ? "No low-stock items found in this branch."
         : additions.length
-          ? `${additions.length} low-stock items added (stock ${data.threshold} or less). Review the suggested order quantities below.`
+          ? `${additions.length} low-stock items added. Review the suggested order quantities below.`
           : "All low-stock items are already in your list. Your quantities have been kept.");
     } catch (err) {
       if (!controller.signal.aborted) setError(getApiError(err, "Unable to load low-stock items. Please try again."));

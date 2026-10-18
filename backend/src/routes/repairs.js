@@ -6,6 +6,7 @@ const Branch = require("../models/Branch");
 const UserBranch = require("../models/UserBranch");
 const { recordMovement } = require("../services/stockMovement");
 const { requireAuth } = require("../middleware/requireAuth");
+const { pagination } = require('../services/pagination');
 
 const router = express.Router();
 router.use(requireAuth, async (req, res, next) => {
@@ -17,7 +18,7 @@ router.use(requireAuth, async (req, res, next) => {
 async function assignParts(req, job, requestedParts, transaction) {
   if (requestedParts.some(part => !part || typeof part.stockId !== 'string' || !Number.isSafeInteger(Number(part.quantity)) || Number(part.quantity) < 1)) throw Object.assign(new Error('A selected part is invalid.'), { status: 400 });
   const ids = [...new Set(requestedParts.map(part => part.stockId))].sort();
-  const rows = ids.length ? await Stock.findAll({ where: { id: ids, branchId: req.branchId }, order: [['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE }) : [];
+  const rows = ids.length ? await Stock.findAll({ where: { id: ids, branchId: req.branchId, isArchived: false }, order: [['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE }) : [];
   const stocks = new Map(rows.map(row => [row.id, row]));
   const parts = [];
   for (const part of requestedParts) {
@@ -130,9 +131,18 @@ router.get("/history", async (req, res, next) => {
         { assetName: { [Op.like]: `%${search}%` } },
       ];
     }
+    const paging = pagination(req.query);
+    if (paging) {
+      const { from, to } = req.query;
+      if ((from && (typeof from !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !Number.isFinite(Date.parse(`${from}T00:00:00Z`)))) || (to && (typeof to !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(to) || !Number.isFinite(Date.parse(`${to}T00:00:00Z`))))) return res.status(400).json({ message: 'Enter valid dates.' });
+      if (from || to) { where.promisedDate = {}; if (from) where.promisedDate[Op.gte] = new Date(`${from}T00:00:00Z`); if (to) { const end = new Date(`${to}T00:00:00Z`); end.setUTCDate(end.getUTCDate() + 1); where.promisedDate[Op.lt] = end; } }
+      const result = await RepairJob.findAndCountAll({ where, order: [['updatedAt', 'DESC'], ['id', 'DESC']], limit: paging.limit, offset: paging.offset });
+      return res.json({ success:true, jobs:result.rows.map(serialize), total:result.count, page:paging.page, pageSize:paging.pageSize });
+    }
     const jobs = await RepairJob.findAll({ where, order: [["updatedAt", "DESC"]] });
     return res.status(200).json({ success: true, jobs: jobs.map(serialize) });
   } catch (error) {
+    if (error.status === 400) return res.status(400).json({ message: error.message });
     return next(error);
   }
 });

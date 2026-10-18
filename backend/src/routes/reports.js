@@ -1,5 +1,5 @@
 const express = require('express');
-const { Op } = require('sequelize');
+const { Op, literal, fn, col, where: sqlWhere } = require('sequelize');
 const { requireAuth } = require('../middleware/requireAuth');
 const Branch = require('../models/Branch');
 const UserBranch = require('../models/UserBranch');
@@ -7,6 +7,7 @@ const Sale = require('../models/Sale');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const Stock = require('../models/Stock');
 const { calculateReport } = require('../services/profitReport');
+const { pagination } = require('../services/pagination');
 const router = express.Router();
 router.use(requireAuth);
 router.use(async (req, res, next) => {
@@ -17,6 +18,56 @@ router.use(async (req, res, next) => {
   } catch (error) { next(error); }
 });
 const adminOnly = (req, res, next) => req.user.customRoleId || !['admin', 'super_admin'].includes(req.user.role) ? res.status(403).json({ message: 'Administrator access required.' }) : next();
+router.get('/supplier-purchase-suppliers', async (req, res, next) => {
+  try {
+    const orders = await PurchaseOrder.findAll({ where: { companyId: req.user.companyId, branchId: req.branchId, status: 'Received' }, attributes: ['supplierId', 'supplierName'], group: ['supplierId', 'supplierName'], order: [['supplierName', 'ASC']], raw: true });
+    const suppliers = [...new Map(orders.map(order => [order.supplierId, { id: order.supplierId, name: order.supplierName }])).values()];
+    res.json({ success: true, suppliers });
+  } catch (error) { next(error); }
+});
+router.get('/supplier-purchases', async (req, res, next) => {
+  try {
+    const paging = pagination({ page: req.query.page ?? '1' });
+    const item = typeof req.query.item === 'string' ? req.query.item.trim().slice(0,160) : '';
+    const supplier = typeof req.query.supplier === 'string' ? req.query.supplier.trim().slice(0,160) : '';
+    const supplierId = typeof req.query.supplierId === 'string' ? req.query.supplierId.trim() : '';
+    const where = { companyId: req.user.companyId, branchId: req.branchId, status: 'Received' };
+    if (supplierId) where.supplierId = supplierId;
+    else if (supplier) where.supplierName = { [Op.like]: `%${supplier}%` };
+    if (item) where[Op.or] = [sqlWhere(fn('JSON_SEARCH', col('items'), 'one', `%${item}%`, null, '$[*].itemName'), { [Op.ne]: null }), sqlWhere(fn('JSON_SEARCH', col('items'), 'one', `%${item}%`, null, '$[*].sku'), { [Op.ne]: null })];
+    const parseDate = value => {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) throw Object.assign(new Error('Enter a valid date range.'), { status: 400 });
+      const date = new Date(value); if (!Number.isFinite(date.getTime()) || date.toISOString() !== value) throw Object.assign(new Error('Enter a valid date range.'), { status: 400 }); return date;
+    };
+    const start = req.query.start === undefined ? null : parseDate(req.query.start), end = req.query.end === undefined ? null : parseDate(req.query.end);
+    if (start && end && start >= end) return res.status(400).json({ message: 'Enter a valid date range.' });
+    if (start || end) where.receivedAt = { ...(start ? { [Op.gte]: start } : {}), ...(end ? { [Op.lt]: end } : {}) };
+    const result = await PurchaseOrder.findAndCountAll({ where, order: [['receivedAt','DESC'], ['id','DESC']], limit: paging.limit, offset: paging.offset, attributes: ['id','orderNumber','supplierName','currency','items','receivedAt'] });
+    const orders = result.rows.map(order => ({ id:order.id, orderNumber:order.orderNumber, supplierName:order.supplierName, currency:order.currency, receivedAt:order.receivedAt, items: item ? order.items.filter(line => `${line.itemName || ''} ${line.sku || ''}`.toLowerCase().includes(item.toLowerCase())) : order.items }));
+    res.json({ success:true, orders, total:result.count, page:paging.page, pageSize:paging.pageSize });
+  } catch (error) { if (error.status === 400) return res.status(400).json({ message: error.message }); next(error); }
+});
+router.get('/stock-valuation', async (req, res, next) => {
+  try {
+    const page = Number(req.query?.page ?? 1), pageSize = 10;
+    const search = typeof req.query?.search === 'string' ? req.query.search.trim().slice(0, 160) : '';
+    if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) return res.status(400).json({ message: 'Enter a valid page.' });
+    const scope = { branchId: req.branchId, isArchived: false, quantity: { [Op.gt]: 0 } };
+    const where = { ...scope, ...(search ? { [Op.or]: [{ name: { [Op.like]: `%${search}%` } }, { sku: { [Op.like]: `%${search}%` } }] } : {}) };
+    const [result, totals] = await Promise.all([
+      Stock.findAndCountAll({ where, attributes: ['id', 'name', 'sku', 'quantity', 'costPrice', 'costCurrency', 'sellingPrice'], order: [['name', 'ASC'], ['id', 'ASC']], limit: pageSize, offset: (page - 1) * pageSize }),
+      Stock.findOne({ where: scope, raw: true, attributes: [
+        [literal("COALESCE(SUM(CASE WHEN cost_currency = 'LKR' THEN cost_price * quantity * 100 ELSE 0 END), 0)"), 'totalCostCents'],
+        [literal('COALESCE(SUM(selling_price * quantity * 100), 0)'), 'sellingValueCents'],
+        [literal("COALESCE(SUM(CASE WHEN cost_currency IS NULL OR cost_currency <> 'LKR' THEN 1 ELSE 0 END), 0)"), 'excludedBatches'],
+        [literal('COALESCE(SUM(quantity), 0)'), 'totalUnits'],
+        [literal('COUNT(*)'), 'totalBatches'],
+      ] }),
+    ]);
+    const rows = result.rows.map(stock => ({ id: stock.id, name: stock.name, sku: stock.sku, quantity: Number(stock.quantity), costPrice: Number(stock.costPrice), costCurrency: stock.costCurrency, sellingPrice: Number(stock.sellingPrice), costValueCents: stock.costCurrency === 'LKR' ? Math.round(Number(stock.costPrice) * 100) * Number(stock.quantity) : null }));
+    res.json({ success: true, rows, page, pageSize, total: result.count, totalCostCents: Number(totals.totalCostCents), sellingValueCents: Number(totals.sellingValueCents), excludedBatches: Number(totals.excludedBatches), totalUnits: Number(totals.totalUnits), totalBatches: Number(totals.totalBatches) });
+  } catch (error) { next(error); }
+});
 router.get('/profit', async (req, res, next) => {
   try {
     const { companyId } = req.user;
@@ -26,7 +77,7 @@ router.get('/profit', async (req, res, next) => {
     const [sales, orders, stocks, undatedOrders] = await Promise.all([
       Sale.findAll({ where: { ...scope, createdAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['id', 'createdAt', 'customerName', 'subtotalCents', 'discountCents', 'totalCents', 'lines'] }),
       PurchaseOrder.findAll({ where: { ...scope, status: 'Received', receivedAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['id', 'orderNumber', 'supplierName', 'receivedAt', 'items', 'totalCents', 'currency'] }),
-      Stock.findAll({ where: { branchId: req.branchId }, attributes: ['id', 'name', 'sku', 'quantity', 'costPrice', 'costCurrency'] }),
+      Stock.findAll({ where: { branchId: req.branchId, isArchived: false }, attributes: ['id', 'name', 'sku', 'quantity', 'costPrice', 'costCurrency'] }),
       PurchaseOrder.findAll({ where: { ...scope, status: 'Received', receivedAt: null }, attributes: ['id', 'orderNumber', 'supplierName', 'currency', 'totalCents', 'createdAt'] }),
     ]);
     const canResolve = !req.user.customRoleId && ['admin', 'super_admin'].includes(req.user.role);

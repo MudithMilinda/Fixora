@@ -2,8 +2,10 @@ const express = require('express');
 const { requireAuth } = require('../middleware/requireAuth');
 const Branch = require('../models/Branch');
 const PurchaseOrder = require('../models/PurchaseOrder');
-const Stock = require('../models/Stock');
 const { recordMovement } = require('../services/stockMovement');
+const { lockStockBranch, receiveStock } = require('../services/receiveStock');
+const { pagination } = require('../services/pagination');
+const { Op } = require('sequelize');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -18,9 +20,14 @@ const serialize = (order) => ({ id: order.id, quotationId: order.quotationId, or
 
 router.get('/', async (req, res, next) => {
   try {
-    const orders = await PurchaseOrder.findAll({ where: scope(req), order: [['createdAt', 'DESC']] });
+    const paging = pagination(req.query);
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 160) : '';
+    const where = { ...scope(req), ...(search ? { [Op.or]: [{ orderNumber: { [Op.like]: `%${search}%` } }, { supplierName: { [Op.like]: `%${search}%` } }] } : {}) };
+    const order = [['createdAt', 'DESC'], ['id', 'DESC']];
+    if (paging) { const result = await PurchaseOrder.findAndCountAll({ where, order, limit: paging.limit, offset: paging.offset }); return res.json({ success: true, orders: result.rows.map(serialize), total: result.count, page: paging.page, pageSize: paging.pageSize }); }
+    const orders = await PurchaseOrder.findAll({ where, order });
     res.json({ success: true, orders: orders.map(serialize) });
-  } catch (error) { next(error); }
+  } catch (error) { if (error.status === 400) return res.status(400).json({ message: error.message }); next(error); }
 });
 
 router.patch('/:id/receive', async (req, res, next) => {
@@ -31,13 +38,11 @@ router.patch('/:id/receive', async (req, res, next) => {
       if (record.status !== 'Ordered') { const error = new Error('Only ordered purchase orders can be marked as received.'); error.status = 400; throw error; }
       const prices = new Map((Array.isArray(req.body.items) ? req.body.items : []).map((item) => [item?.requestId, item?.sellingPrice]));
       if (prices.size !== record.items.length) { const error = new Error('Enter a selling price for every received item.'); error.status = 400; throw error; }
+      await lockStockBranch(req, transaction);
       for (const item of record.items) {
         const sellingPrice = Number(prices.get(item.requestId));
         if (!Number.isFinite(sellingPrice) || sellingPrice < 0 || sellingPrice > 99999999.99) { const error = new Error('Enter valid selling prices.'); error.status = 400; throw error; }
-        // Each delivery is a distinct stock batch. Do not combine it with an
-        // existing item: that would overwrite the previous batch's cost and
-        // selling price and make the stock store pricing inaccurate.
-        const stock = await Stock.create({
+        const stock = await receiveStock({
           itemId: item.itemId,
           branchId: req.branchId,
           name: item.itemName,
@@ -46,8 +51,8 @@ router.patch('/:id/receive', async (req, res, next) => {
           costPrice: item.unitPriceCents / 100,
           costCurrency: record.currency,
           sellingPrice,
-        }, { transaction });
-        await recordMovement({ stock, req, kind: 'purchase', change: Number(stock.quantity), balanceAfter: Number(stock.quantity), referenceId: record.id, referenceLabel: record.orderNumber, transaction });
+        }, transaction);
+        await recordMovement({ stock, req, kind: 'purchase', change: Number(item.quantity), balanceAfter: Number(stock.quantity), referenceId: record.id, referenceLabel: record.orderNumber, transaction });
       }
       await record.update({ status: 'Received', receivedAt: new Date() }, { transaction });
       return record;
