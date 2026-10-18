@@ -3,6 +3,7 @@ const { requireAuth } = require('../middleware/requireAuth');
 const Branch = require('../models/Branch');
 const UserBranch = require('../models/UserBranch');
 const Stock = require('../models/Stock');
+const { recordMovement } = require('../services/stockMovement');
 const Sale = require('../models/Sale');
 const { RepairJob } = require('../models/RepairJob');
 const router = express.Router();
@@ -49,6 +50,7 @@ router.post('/', async (req, res, next) => {
       const stockMap = new Map(stocks.map(stock => [stock.id, stock]));
       const usedStocks = new Set(), usedParts = new Set();
       const lines = [];
+      const movements = [];
       for (const line of inputLines) {
         const quantity = Number(line.quantity);
         if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000000) throw bad('Enter a valid item quantity.');
@@ -57,7 +59,9 @@ router.post('/', async (req, res, next) => {
           const stock = stockMap.get(line.stockId);
           if (!stock || usedStocks.has(stock.id) || stock.quantity < quantity) throw bad('A stock item is unavailable or has insufficient quantity. Reload and try again.');
           usedStocks.add(stock.id); name = stock.name; sku = stock.sku; unitPrice = cents(stock.sellingPrice); unitCostCents = stock.costCurrency === 'LKR' ? cents(stock.costPrice) : null;
-          await stock.update({ quantity: stock.quantity - quantity }, { transaction });
+          const balanceAfter = stock.quantity - quantity;
+          await stock.update({ quantity: balanceAfter }, { transaction });
+          movements.push({ stock, quantity, balanceAfter });
         } else if (line.type === 'repair') {
           const part = Number.isInteger(line.partIndex) && repairParts[line.partIndex];
           if (!repair || !part || usedParts.has(line.partIndex) || quantity > part.quantity) throw bad('A repair part is invalid.');
@@ -75,7 +79,9 @@ router.post('/', async (req, res, next) => {
       const payments = inputPayments.map(payment => { if (!methods.includes(payment.method)) throw bad('Invalid payment method.'); const amount = cents(payment.amount); if (amount <= 0) throw bad('Enter a valid payment amount.'); return { method: payment.method, amount: amount / 100 }; });
       const total = subtotal - discount;
       if (payments.reduce((sum, payment) => sum + cents(payment.amount), 0) !== total) throw bad('Payment amounts must equal the sale total. Check prices and try again.');
-      return Sale.create({ requestId, companyId: req.user.companyId, branchId: req.branchId, createdBy: req.user.id, repairId: repairId || null, customerName, customerPhone, subtotalCents: subtotal, discountCents: discount, totalCents: total, lines, payments, repair }, { transaction });
+      const sale = await Sale.create({ requestId, companyId: req.user.companyId, branchId: req.branchId, createdBy: req.user.id, repairId: repairId || null, customerName, customerPhone, subtotalCents: subtotal, discountCents: discount, totalCents: total, lines, payments, repair }, { transaction });
+      for (const movement of movements) await recordMovement({ stock: movement.stock, req, kind: 'sale', change: -movement.quantity, balanceAfter: movement.balanceAfter, referenceId: sale.id, transaction });
+      return sale;
     });
     res.status(201).json({ success: true, sale: serialize(sale) });
   } catch (error) { if (error.status === 400) return res.status(400).json({ success: false, message: error.message }); if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ success: false, message: 'This sale or repair has already been recorded. Refresh payment history.' }); next(error); }

@@ -11,6 +11,7 @@ const transaction = { LOCK: { UPDATE: 'UPDATE' } };
 function setup(t) { t.mock.method(Sale.sequelize, 'transaction', async fn => fn(transaction)); t.mock.method(Sale, 'findOne', async () => null); }
 test('sale locks branch stock, uses server prices and saves in the same transaction', async t => {
   setup(t); let updated;
+  t.mock.method(require('../models/StockMovement'), 'create', async (values, options) => { assert.equal(options.transaction, transaction); assert.equal(values.quantityChange, -2); assert.equal(values.balanceAfter, 1); assert.equal(values.referenceId, 'sale-a'); assert.equal(values.unitCost, '8.00'); assert.equal(values.unitSellingPrice, '12.50'); });
   t.mock.method(Stock, 'findAll', async options => { assert.equal(options.where.branchId, 'branch-a'); assert.equal(options.transaction, transaction); return [{ id: 'stock-a', name: 'Part', sku: null, quantity: 3, sellingPrice: '12.50', costPrice: '8.00', costCurrency: 'LKR', update: async (values, options) => { assert.equal(options.transaction, transaction); updated = values.quantity; } }]; });
   t.mock.method(Sale, 'create', async (values, options) => { assert.equal(options.transaction, transaction); assert.equal(values.totalCents, 2500); assert.equal(values.branchId, 'branch-a'); assert.equal(values.lines[0].unitPrice, 12.5); assert.equal(values.lines[0].unitCostCents, 800); return { ...values, id: 'sale-a', createdAt: new Date() }; });
   const res = response(); await handler(req, res, e => { throw e }); assert.equal(res.statusCode, 201); assert.equal(updated, 1);

@@ -3,6 +3,7 @@ const { requireAuth } = require('../middleware/requireAuth');
 const Branch = require('../models/Branch');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const Stock = require('../models/Stock');
+const { recordMovement } = require('../services/stockMovement');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -36,7 +37,7 @@ router.patch('/:id/receive', async (req, res, next) => {
         // Each delivery is a distinct stock batch. Do not combine it with an
         // existing item: that would overwrite the previous batch's cost and
         // selling price and make the stock store pricing inaccurate.
-        await Stock.create({
+        const stock = await Stock.create({
           itemId: item.itemId,
           branchId: req.branchId,
           name: item.itemName,
@@ -46,6 +47,7 @@ router.patch('/:id/receive', async (req, res, next) => {
           costCurrency: record.currency,
           sellingPrice,
         }, { transaction });
+        await recordMovement({ stock, req, kind: 'purchase', change: Number(stock.quantity), balanceAfter: Number(stock.quantity), referenceId: record.id, referenceLabel: record.orderNumber, transaction });
       }
       await record.update({ status: 'Received', receivedAt: new Date() }, { transaction });
       return record;

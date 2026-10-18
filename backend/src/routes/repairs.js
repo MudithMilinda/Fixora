@@ -2,10 +2,34 @@ const express = require("express");
 const { Op } = require("sequelize");
 const { RepairJob, REPAIR_STATUSES, ASSET_TYPES } = require("../models/RepairJob");
 const Stock = require("../models/Stock");
+const Branch = require("../models/Branch");
+const UserBranch = require("../models/UserBranch");
+const { recordMovement } = require("../services/stockMovement");
 const { requireAuth } = require("../middleware/requireAuth");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, async (req, res, next) => {
+  try {
+    if (!req.user.companyId || !req.branchId || !await Branch.findOne({ where: { id: req.branchId, companyId: req.user.companyId, isActive: true } }) || !await UserBranch.findOne({ where: { userId: req.user.id, branchId: req.branchId } })) return res.status(403).json({ message: 'Select an accessible branch.' });
+    next();
+  } catch (error) { next(error); }
+});
+async function assignParts(req, job, requestedParts, transaction) {
+  if (requestedParts.some(part => !part || typeof part.stockId !== 'string' || !Number.isSafeInteger(Number(part.quantity)) || Number(part.quantity) < 1)) throw Object.assign(new Error('A selected part is invalid.'), { status: 400 });
+  const ids = [...new Set(requestedParts.map(part => part.stockId))].sort();
+  const rows = ids.length ? await Stock.findAll({ where: { id: ids, branchId: req.branchId }, order: [['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE }) : [];
+  const stocks = new Map(rows.map(row => [row.id, row]));
+  const parts = [];
+  for (const part of requestedParts) {
+    const stock = stocks.get(part.stockId), quantity = Number(part.quantity);
+    if (!stock || stock.quantity < quantity) throw Object.assign(new Error('A selected part is unavailable or has insufficient stock.'), { status: 400 });
+    const balanceAfter = Number(stock.quantity) - quantity;
+    await stock.update({ quantity: balanceAfter }, { transaction });
+    await recordMovement({ stock, req, kind: 'repair', change: -quantity, balanceAfter, referenceId: job.id, referenceLabel: job.jobNumber, transaction });
+    parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), unitCostCents: stock.costCurrency === 'LKR' ? Math.round(Number(stock.costPrice) * 100) : null, total: Number(stock.sellingPrice) * quantity });
+  }
+  return parts;
+}
 
 function readParts(value) {
   if (Array.isArray(value)) return value;
@@ -79,32 +103,16 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Enter a valid promised date." });
     }
 
-    const parts = [];
-    for (const requestedPart of requestedParts) {
-      const quantity = Number(requestedPart.quantity);
-      const stock = await Stock.findOne({ where: { id: requestedPart.stockId, branchId: req.branchId } });
-      if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." });
-      await stock.update({ quantity: stock.quantity - quantity });
-      parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), unitCostCents: stock.costCurrency === 'LKR' ? Math.round(Number(stock.costPrice) * 100) : null, total: Number(stock.sellingPrice) * quantity });
-    }
     const jobNumber = `REP-${Date.now().toString().slice(-8)}`;
-    const job = await RepairJob.create({
-      jobNumber,
-      customerName,
-      customerPhone: customerPhone || null,
-      assetName,
-      assetType,
-      assetIdentifier: assetIdentifier || null,
-      issue,
-      technician: technician || null,
-      promisedDate,
-      priority,
-      branchId: req.branchId,
-      parts,
-      createdBy: req.user.id,
+    const job = await RepairJob.sequelize.transaction(async transaction => {
+      const created = await RepairJob.create({ jobNumber, customerName, customerPhone: customerPhone || null, assetName, assetType, assetIdentifier: assetIdentifier || null, issue, technician: technician || null, promisedDate, priority, branchId: req.branchId, parts: [], createdBy: req.user.id }, { transaction });
+      const parts = await assignParts(req, created, requestedParts, transaction);
+      if (parts.length) await created.update({ parts }, { transaction });
+      return created;
     });
     return res.status(201).json({ success: true, message: "Repair job created.", job: serialize(job) });
   } catch (error) {
+    if (error.status === 400) return res.status(400).json({ success: false, message: error.message });
     return next(error);
   }
 });
@@ -157,13 +165,15 @@ router.patch("/:id", async (req, res, next) => {
     }
     if (promisedDate && Number.isNaN(promisedDate.getTime())) return res.status(400).json({ success: false, message: "Enter a valid promised date." });
 
-    // Some MySQL/MariaDB drivers return JSON columns as a string. Parse it
-    // before appending so editing a repair never hides or overwrites saved parts.
-    const parts = [...readParts(job.parts)];
-    for (const requestedPart of requestedParts) { const quantity = Number(requestedPart.quantity); const stock = await Stock.findOne({ where: { id: requestedPart.stockId, branchId: req.branchId } }); if (!stock || !Number.isInteger(quantity) || quantity < 1 || stock.quantity < quantity) return res.status(400).json({ success: false, message: "A selected part is unavailable or has insufficient stock." }); await stock.update({ quantity: stock.quantity - quantity }); parts.push({ stockId: stock.id, name: stock.name, sku: stock.sku, quantity, unitPrice: Number(stock.sellingPrice), unitCostCents: stock.costCurrency === 'LKR' ? Math.round(Number(stock.costPrice) * 100) : null, total: Number(stock.sellingPrice) * quantity }); }
-    await job.update({ customerName, assetName, issue, assetType, priority, status, promisedDate, parts, customerPhone: typeof req.body.customerPhone === "string" ? req.body.customerPhone.trim() || null : job.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === "string" ? req.body.assetIdentifier.trim() || null : job.assetIdentifier, technician: typeof req.body.technician === "string" ? req.body.technician.trim() || null : job.technician });
-    return res.status(200).json({ success: true, message: "Repair job updated.", job: serialize(job) });
-  } catch (error) { return next(error); }
+    const updated = await RepairJob.sequelize.transaction(async transaction => {
+      const locked = await RepairJob.findOne({ where: { id: req.params.id, branchId: req.branchId }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!locked) throw Object.assign(new Error('Repair job not found.'), { status: 404 });
+      const parts = [...readParts(locked.parts), ...await assignParts(req, locked, requestedParts, transaction)];
+      await locked.update({ customerName, assetName, issue, assetType, priority, status, promisedDate, parts, customerPhone: typeof req.body.customerPhone === 'string' ? req.body.customerPhone.trim() || null : locked.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === 'string' ? req.body.assetIdentifier.trim() || null : locked.assetIdentifier, technician: typeof req.body.technician === 'string' ? req.body.technician.trim() || null : locked.technician }, { transaction });
+      return locked;
+    });
+    return res.status(200).json({ success: true, message: "Repair job updated.", job: serialize(updated) });
+  } catch (error) { if (error.status === 400 || error.status === 404) return res.status(error.status).json({ success: false, message: error.message }); return next(error); }
 });
 
 router.delete("/:id", async (req, res, next) => {
