@@ -7,14 +7,25 @@ const money = (value: number) =>
 
 const warrantyDate = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
+function warrantyStatus(warranty: NonNullable<CompletedSale['lines'][number]['warranty']>) {
+  if (!warranty.count) return 'No warranty';
+  if (!warranty.start || !warranty.end) return 'Not recorded';
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const part = (type: string) => parts.find(value => value.type === type)?.value || '';
+  const today = `${part('year')}-${part('month')}-${part('day')}`;
+  return today < warranty.start ? 'Not started' : today <= warranty.end ? 'Active' : 'Expired';
+}
+
 export default function SaleInvoiceModal({
   sale,
   onClose,
   closeLabel = "Payment history",
+  onCreateClaim,
 }: {
   sale: CompletedSale;
   onClose: () => void;
   closeLabel?: string;
+  onCreateClaim?: () => void;
 }) {
   const customer = sale.customerName || "Walk-in customer";
   const { company } = useCompanyBranding();
@@ -85,7 +96,7 @@ export default function SaleInvoiceModal({
 
           <table className="mt-6 w-full border-collapse border-y border-[#dfe2e7] text-left text-[13px]">
             <thead className="border-b border-[#dfe2e7] text-[10px] font-semibold uppercase tracking-[.08em] text-[#4e5562]"><tr><th className="py-3 pr-3">Item</th><th className="px-3 py-3 text-right">Price</th><th className="px-3 py-3 text-right">Qty.</th><th className="py-3 pl-3 text-right">Subtotal</th></tr></thead>
-            <tbody>{sale.lines.map((line, index) => <tr className="border-b border-[#e9ebee] last:border-b-0" key={`${line.name}-${index}`}><td className="py-3.5 pr-3"><strong className="block text-[#262b3a]">{line.name}</strong>{line.sku && <small className="mt-1 block text-xs text-[#69717f]">{line.sku}</small>}{line.warranty && <div className="mt-2 text-xs leading-5 text-[#69717f]"><p>{line.warranty.count > 0 && line.warranty.end ? `Warranty: ${line.warranty.count} ${line.warranty.unit} · Until ${warrantyDate(line.warranty.end)}` : 'No warranty'}</p>{line.warranty.numbers.length > 0 && <p className="break-all">Serial / warranty number: {line.warranty.numbers.join(', ')}</p>}</div>}</td><td className="px-3 py-3.5 text-right tabular-nums text-[#353b48]">{money(line.unitPrice)}</td><td className="px-3 py-3.5 text-right tabular-nums text-[#353b48]">{line.quantity}</td><td className="py-3.5 pl-3 text-right font-semibold tabular-nums text-[#262b3a]">{money(line.unitPrice * line.quantity)}</td></tr>)}</tbody>
+            <tbody>{sale.lines.map((line, index) => <tr className="border-b border-[#e9ebee] last:border-b-0" key={`${line.name}-${index}`}><td className="py-3.5 pr-3"><strong className="block text-[#262b3a]">{line.name}</strong>{line.sku && <small className="mt-1 block text-xs text-[#69717f]">{line.sku}</small>}{line.warranty ? <div className="mt-2 text-xs leading-5 text-[#69717f]"><p>Warranty: <span className={`font-semibold ${warrantyStatus(line.warranty) === 'Active' ? 'text-[#278153]' : warrantyStatus(line.warranty) === 'Expired' ? 'text-[#b34d42]' : 'text-[#69717f]'}`}>{warrantyStatus(line.warranty)}</span>{line.warranty.count > 0 && line.warranty.end && ` · ${line.warranty.count} ${line.warranty.unit} · Until ${warrantyDate(line.warranty.end)}`}</p>{line.warranty.numbers.length > 0 && <p className="break-all">Serial / warranty number: {line.warranty.numbers.join(', ')}</p>}</div> : <p className="mt-2 text-xs text-[#69717f]">Warranty not recorded</p>}</td><td className="px-3 py-3.5 text-right tabular-nums text-[#353b48]">{money(line.unitPrice)}</td><td className="px-3 py-3.5 text-right tabular-nums text-[#353b48]">{line.quantity}</td><td className="py-3.5 pl-3 text-right font-semibold tabular-nums text-[#262b3a]">{money(line.unitPrice * line.quantity)}</td></tr>)}</tbody>
           </table>
 
           <dl className="ml-auto mt-5 w-full max-w-[290px] text-[13px]">
@@ -97,6 +108,7 @@ export default function SaleInvoiceModal({
         </div>
 
         <footer data-invoice-actions className="flex flex-wrap justify-end gap-3 border-t border-[#eceef2] bg-[#fcfcfd] px-7 py-4">
+          {onCreateClaim && <button type="button" onClick={onCreateClaim} className="h-10 rounded-[10px] border border-[#dfe2e7] bg-white px-4 text-xs font-semibold text-[#565d6c] transition hover:bg-[#f6f7f8]">Create warranty claim</button>}
           <button type="button" onClick={() => window.print()} className="h-10 rounded-[10px] border border-[#dfe2e7] bg-white px-4 text-xs font-semibold text-[#565d6c] transition hover:bg-[#f6f7f8]">Print invoice</button>
           <button type="button" onClick={onClose} className="h-10 rounded-[10px] bg-[#171719] px-4 text-xs font-semibold text-white transition hover:bg-[#2a2a2e]">{closeLabel}</button>
         </footer>

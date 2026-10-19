@@ -5,6 +5,7 @@ const Branch = require('../models/Branch');
 const UserBranch = require('../models/UserBranch');
 const Sale = require('../models/Sale');
 const SaleReturn = require('../models/SaleReturn');
+const SupplierReturn = require('../models/SupplierReturn');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const Stock = require('../models/Stock');
 const StockMovement = require('../models/StockMovement');
@@ -134,12 +135,13 @@ router.get('/profit', async (req, res, next) => {
     const start = new Date(req.query.start), end = new Date(req.query.end);
     if (typeof req.query.start !== 'string' || typeof req.query.end !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(req.query.start) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(req.query.end) || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start >= end) return res.status(400).json({ message: 'Enter a valid date range.' });
     const scope = { companyId, branchId: req.branchId };
-    const [sales, orders, stocks, undatedOrders, returns] = await Promise.all([
+    const [sales, orders, stocks, undatedOrders, returns, supplierRefunds] = await Promise.all([
       Sale.findAll({ where: { ...scope, createdAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['id', 'createdAt', 'customerName', 'subtotalCents', 'discountCents', 'totalCents', 'lines'] }),
       PurchaseOrder.findAll({ where: { ...scope, status: 'Received', receivedAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['id', 'orderNumber', 'supplierName', 'receivedAt', 'items', 'totalCents', 'currency'] }),
       Stock.findAll({ where: { branchId: req.branchId, isArchived: false }, attributes: ['id', 'name', 'sku', 'quantity', 'costPrice', 'costCurrency'] }),
       PurchaseOrder.findAll({ where: { ...scope, status: 'Received', receivedAt: null }, attributes: ['id', 'orderNumber', 'supplierName', 'currency', 'totalCents', 'createdAt'] }),
       SaleReturn.findAll({ where: { ...scope, createdAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['id', 'saleId', 'customerName', 'refundCents', 'lines', 'createdAt'] }),
+      SupplierReturn.findAll({ where: { ...scope, status: 'Refunded', resolvedAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['currency', [fn('SUM', literal('quantity * unit_price_cents')), 'totalCents'], [fn('COUNT', col('id')), 'count']], group: ['currency'], raw: true }),
     ]);
     const canResolve = !req.user.customRoleId && ['admin', 'super_admin'].includes(req.user.role);
     const missingSales = canResolve ? sales.flatMap(sale => {
@@ -158,7 +160,12 @@ router.get('/profit', async (req, res, next) => {
       orders: orders.map(order => ({ id: order.id, orderNumber: order.orderNumber, supplierName: order.supplierName, receivedAt: order.receivedAt, currency: order.currency, totalCents: Number(order.totalCents), items: order.items })),
       stocks: stocks.map(stock => ({ id: stock.id, name: stock.name, sku: stock.sku, quantity: Number(stock.quantity), costPrice: Number(stock.costPrice), costCurrency: stock.costCurrency })),
     };
-    res.json({ success: true, report: { ...calculateReport(sales, orders, stocks, returns), undatedOrders: undatedOrders.length }, details, canResolve, missingSales, missingStocks, missingOrders: canResolve ? undatedOrders : [] });
+    const baseReport = calculateReport(sales, orders, stocks, returns);
+    const lkrRefund = supplierRefunds.find(row => row.currency === 'LKR');
+    const supplierRefundCents = Number(lkrRefund?.totalCents || 0);
+    const supplierRefundCount = Number(lkrRefund?.count || 0);
+    const excludedSupplierRefunds = supplierRefunds.filter(row => row.currency !== 'LKR').reduce((sum, row) => sum + Number(row.count), 0);
+    res.json({ success: true, report: { ...baseReport, supplierRefundCents, supplierRefundCount, excludedSupplierRefunds, netPurchaseCents: baseReport.purchaseCents - supplierRefundCents, undatedOrders: undatedOrders.length }, details, canResolve, missingSales, missingStocks, missingOrders: canResolve ? undatedOrders : [] });
   } catch (error) { next(error); }
 });
 

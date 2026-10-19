@@ -6,6 +6,7 @@ type Props = Omit<SelectHTMLAttributes<HTMLSelectElement>, 'multiple' | 'size' |
   searchable?: boolean
   searchPlaceholder?: string
   triggerRef?: RefObject<HTMLButtonElement | null>
+  compact?: boolean
 }
 
 function optionText(children: ReactNode): string {
@@ -26,7 +27,7 @@ function readOptions(children: ReactNode, disabled = false): Option[] {
 // Retains a native select for FormData and required validation, but never opens
 // its OS menu. The visible popup uses Tailwind and the browser's top layer so
 // it is not clipped by scrollable forms or native modal dialogs.
-export default function AppSelect({ children, className = '', searchable, searchPlaceholder = 'Search options…', triggerRef, value, defaultValue, onChange, onInvalid, disabled, required, id, style: _style, ...props }: Props) {
+export default function AppSelect({ children, className = '', searchable, searchPlaceholder = 'Search options…', triggerRef, compact = false, value, defaultValue, onChange, onInvalid, disabled, required, id, style: _style, ...props }: Props) {
   const generatedId = useId()
   const triggerId = id || `${generatedId}-trigger`
   const listId = `${generatedId}-list`
@@ -118,7 +119,7 @@ export default function AppSelect({ children, className = '', searchable, search
     if (!expanded || !menu || !button) return
     const position = () => {
       const rect = button.getBoundingClientRect()
-      const width = Math.min(Math.max(rect.width, 220), window.innerWidth - 24)
+      const width = Math.min(Math.max(rect.width, compact ? 180 : 220), window.innerWidth - 24)
       const below = window.innerHeight - rect.bottom - 16
       const above = rect.top - 16
       const upwards = below < 240 && above > below
@@ -142,7 +143,7 @@ export default function AppSelect({ children, className = '', searchable, search
       observer.disconnect()
       if (menu.matches(':popover-open')) menu.hidePopover()
     }
-  }, [expanded, hasSearch])
+  }, [expanded, hasSearch, compact])
 
   useEffect(() => {
     if (!expanded) return
@@ -164,16 +165,16 @@ export default function AppSelect({ children, className = '', searchable, search
 
   return <div ref={root} className={`relative min-w-0 ${className}`} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) close() }}>
     <button ref={(element) => { trigger.current = element; if (triggerRef) triggerRef.current = element }} id={triggerId} type="button" role="combobox" aria-haspopup="listbox" aria-controls={expanded ? listId : undefined} aria-expanded={expanded} aria-activedescendant={expanded && !hasSearch && activeOption ? `${listId}-${active}` : undefined} aria-required={required || undefined} aria-invalid={invalid || undefined} aria-label={props['aria-label']} aria-labelledby={props['aria-labelledby']} aria-describedby={invalid ? `${generatedId}-error` : props['aria-describedby']} disabled={disabled} autoFocus={props.autoFocus} onKeyDown={handleKey} onClick={() => expanded ? close() : show()}
-      className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border bg-white px-3.5 py-2.5 text-left text-sm font-normal shadow-sm transition hover:border-[#bfc4cd] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ad6338] disabled:cursor-not-allowed disabled:bg-[#f7f7f9] disabled:opacity-60 ${invalid ? 'border-red-400' : expanded ? 'border-[#ad6338] ring-2 ring-[#ad6338]/10' : 'border-[#e2e3e8]'}`}>
+      className={`flex w-full items-center justify-between gap-3 rounded-xl border bg-white text-left text-sm font-normal shadow-sm transition hover:border-[#bfc4cd] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ad6338] disabled:cursor-not-allowed disabled:bg-[#f7f7f9] disabled:opacity-60 ${compact ? 'min-h-10 px-3 py-2' : 'min-h-11 px-3.5 py-2.5'} ${invalid ? 'border-red-400' : expanded ? 'border-[#ad6338] ring-2 ring-[#ad6338]/10' : 'border-[#e2e3e8]'}`}>
       <span className={`min-w-0 truncate ${selectedValue ? 'text-[#414754]' : 'text-[#7a8090]'}`}>{selected?.label || 'Select an option'}</span>
       <svg className={`h-4 w-4 shrink-0 text-[#747a89] transition-transform ${expanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>
     <select {...props} ref={native} tabIndex={-1} aria-hidden="true" autoFocus={false} required={required} disabled={disabled} value={selectedValue} onChange={(event) => { setInternalValue(event.target.value); onChange?.(event) }} onInvalid={(event) => { event.preventDefault(); setInvalid(true); trigger.current?.focus(); onInvalid?.(event) }} style={{ display: 'none' }}>{children}</select>
     {invalid && <span id={`${generatedId}-error`} role="alert" className="mt-1 block text-xs text-red-600">Please select an option.</span>}
     {expanded && <div ref={popup} popover="manual" className="fixed m-0 flex flex-col overflow-hidden rounded-xl border border-[#e2e3e8] bg-white p-1.5 font-sans text-[#414754] shadow-[0_12px_36px_#262b3a24]" onKeyDown={handleKey}>
-      {hasSearch && <div className="relative mb-1 shrink-0 border-b border-[#eceef2] p-1.5 pb-3"><input ref={search} role="combobox" aria-label={`Search ${props['aria-label'] || 'options'}`} aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={activeOption ? `${listId}-${active}` : undefined} autoComplete="off" value={query} placeholder={searchPlaceholder} onChange={(event) => { event.stopPropagation(); setQuery(event.target.value); setActive(0) }} className="min-h-10 w-full rounded-lg border border-[#e2e3e8] bg-[#f8f8fa] px-3 py-2 text-sm font-normal text-[#414754] outline-none focus:border-[#ad6338]" /></div>}
+      {hasSearch && <div className={`relative mb-1 shrink-0 border-b border-[#eceef2] p-1.5 ${compact ? 'pb-2' : 'pb-3'}`}><input ref={search} role="combobox" aria-label={`Search ${props['aria-label'] || 'options'}`} aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={activeOption ? `${listId}-${active}` : undefined} autoComplete="off" value={query} placeholder={searchPlaceholder} onChange={(event) => { event.stopPropagation(); setQuery(event.target.value); setActive(0) }} className={`${compact ? 'min-h-9' : 'min-h-10'} w-full rounded-lg border border-[#e2e3e8] bg-[#f8f8fa] px-3 py-2 text-sm font-normal text-[#414754] outline-none focus:border-[#ad6338]`} /></div>}
       <ul id={listId} role="listbox" aria-label={props['aria-label'] || 'Options'} className="m-0 min-h-0 list-none overflow-y-auto overscroll-contain p-0">
-        {results.map((option, index) => <li key={`${option.value}-${index}`} id={`${listId}-${index}`} role="option" aria-selected={option.value === selectedValue} aria-disabled={option.disabled || undefined} data-active={index === active} onPointerMove={() => { if (!option.disabled) setActive(index) }} onMouseDown={(event) => event.preventDefault()} onClick={(event) => { event.preventDefault(); choose(option) }} className={`flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-normal leading-relaxed ${option.disabled ? 'cursor-not-allowed opacity-40' : index === active ? 'bg-[#f0f0f3] text-[#262b3a]' : option.value === selectedValue ? 'bg-[#f7f7f9] text-[#262b3a]' : 'text-[#515867]'}`}><span className="min-w-0 break-words">{option.label}</span>{option.value === selectedValue && <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" strokeLinecap="round" strokeLinejoin="round" /></svg>}</li>)}
+        {results.map((option, index) => <li key={`${option.value}-${index}`} id={`${listId}-${index}`} role="option" aria-selected={option.value === selectedValue} aria-disabled={option.disabled || undefined} data-active={index === active} onPointerMove={() => { if (!option.disabled) setActive(index) }} onMouseDown={(event) => event.preventDefault()} onClick={(event) => { event.preventDefault(); choose(option) }} className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 text-sm font-normal leading-relaxed ${compact ? 'min-h-9 py-1.5' : 'min-h-10 py-2.5'} ${option.disabled ? 'cursor-not-allowed opacity-40' : index === active ? 'bg-[#f0f0f3] text-[#262b3a]' : option.value === selectedValue ? 'bg-[#f7f7f9] text-[#262b3a]' : 'text-[#515867]'}`}><span className="min-w-0 break-words">{option.label}</span>{option.value === selectedValue && <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" strokeLinecap="round" strokeLinejoin="round" /></svg>}</li>)}
       </ul>
       {!results.length && <p role="status" className="px-3 py-6 text-center text-sm font-normal text-[#7a8090]">No matching options.</p>}
     </div>}

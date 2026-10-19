@@ -17,6 +17,7 @@ test('report queries sales, receipts and inventory within active branch', async 
   t.mock.method(Branch, 'findOne', async ({ where }) => { assert.equal(where.companyId, 'c'); return {}; });
   t.mock.method(UserBranch, 'findOne', async () => ({}));
   t.mock.method(require('../models/SaleReturn'), 'findAll', async ({ where }) => { assert.equal(where.branchId, 'b'); return []; });
+  t.mock.method(require('../models/SupplierReturn'), 'findAll', async ({ where }) => { assert.equal(where.branchId, 'b'); return []; });
   t.mock.method(Sale, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'b'); assert.equal(where.companyId, 'c'); return []; });
   t.mock.method(PurchaseOrder, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'b'); assert.equal(where.status, 'Received'); return []; });
   t.mock.method(PurchaseOrder, 'count', async ({ where }) => { assert.equal(where.branchId, 'b'); return 0; });
@@ -104,6 +105,7 @@ test('report details match summary totals, discounts, missing costs and current 
   const router = require('../routes/reports'); const handler = router.stack.find(layer => layer.route?.path === '/profit').route.stack[0].handle;
   const Sale = require('../models/Sale'); const Order = require('../models/PurchaseOrder'); const Stock = require('../models/Stock');
   t.mock.method(require('../models/SaleReturn'), 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return []; });
+  t.mock.method(require('../models/SupplierReturn'), 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return []; });
   t.mock.method(Sale, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return [{ id: 'sale', createdAt: new Date(), customerName: 'Customer', subtotalCents: 3000, discountCents: 500, totalCents: 2500, lines: JSON.stringify([{ name: 'Part', quantity: 2, unitPrice: 15, unitCostCents: 700 }]) }, { id: 'sale-unknown', totalCents: 1000, subtotalCents: 1000, discountCents: 0, lines: [{ name: 'Service', quantity: 1 }] }]; });
   t.mock.method(Order, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return where.receivedAt === null ? [] : [{ id: 'order', orderNumber: 'PO-1', currency: 'LKR', totalCents: 2000, items: [{ itemName: 'Part', quantity: 2, unitPriceCents: 1000 }] }]; });
   t.mock.method(Stock, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return [{ id: 'stock', name: 'Part', quantity: 2, costPrice: '7.00', costCurrency: 'LKR' }]; });
@@ -149,4 +151,18 @@ test('selected adjustment item filters rows and summary together before paginati
   t.mock.method(Movement, 'findOne', async ({ where }) => { assert.equal(where, filter); return { damagedUnits: 0, lostUnits: 0, lossCostCents: 0, excludedLosses: 0 }; });
   const res = reply(); await route('/stock-adjustments')[0].handle({ user: { companyId: 'company' }, branchId: 'branch', query: { page: '2', itemName: 'Screen', itemSku: 'SCR', reason: 'damaged' } }, res, e => { throw e });
   assert.equal(res.body.total, 0);
+});
+test('supplier refunds are scoped by confirmation date and currency without affecting gross profit', async t => {
+  const SupplierReturn = require('../models/SupplierReturn'); const Sale = require('../models/Sale'); const Order = require('../models/PurchaseOrder'); const Stock = require('../models/Stock'); const { Op } = require('sequelize');
+  t.mock.method(SupplierReturn, 'findAll', async options => {
+    assert.equal(options.where.companyId, 'company'); assert.equal(options.where.branchId, 'branch'); assert.equal(options.where.status, 'Refunded');
+    assert.equal(options.where.resolvedAt[Op.gte].toISOString(), '2026-01-01T00:00:00.000Z'); assert.equal(options.where.resolvedAt[Op.lt].toISOString(), '2026-02-01T00:00:00.000Z');
+    assert.deepEqual(options.group, ['currency']); return [{ currency: 'LKR', totalCents: '3500', count: '2' }, { currency: 'USD', totalCents: '700', count: '1' }];
+  });
+  t.mock.method(require('../models/SaleReturn'), 'findAll', async () => []);
+  t.mock.method(Sale, 'findAll', async () => [{ totalCents: 5000, lines: [{ name: 'Item', quantity: 1, unitCostCents: 3000 }] }]);
+  t.mock.method(Order, 'findAll', async ({ where }) => where.receivedAt === null ? [] : [{ currency: 'LKR', totalCents: 2000, items: [] }]);
+  t.mock.method(Stock, 'findAll', async () => []);
+  const res = reply(); await route('/profit')[0].handle({ user: { companyId: 'company' }, branchId: 'branch', query: { start: '2026-01-01T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z' } }, res, e => { throw e });
+  assert.equal(res.body.report.supplierRefundCents, 3500); assert.equal(res.body.report.supplierRefundCount, 2); assert.equal(res.body.report.excludedSupplierRefunds, 1); assert.equal(res.body.report.netPurchaseCents, -1500); assert.equal(res.body.report.grossProfitCents, 2000);
 });

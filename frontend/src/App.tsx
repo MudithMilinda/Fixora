@@ -21,14 +21,18 @@ import PurchaseOrdersPage from './Pages/PurchaseOrdersPage'
 import PaymentsPage from './Pages/PaymentsPage'
 import SalesReturnsPage from './Pages/SalesReturnsPage'
 import PaymentHistoryPage from './Pages/PaymentHistoryPage'
+import WarrantyClaimsPage from './Pages/WarrantyClaimsPage'
+import SupplierReturnsPage from './Pages/SupplierReturnsPage'
 import TechniciansPage from './Pages/TechniciansPage'
 import type { AuthUser } from './types/auth'
 import api from './api/axios'
 import { CompanyBrandingProvider } from './CompanyBrandingContext'
 
-type AppPage = 'salesReturns' | 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases' | 'stockAdjustmentsReport'
+type AppPage = 'supplierReturns' | 'warrantyClaims' | 'salesReturns' | 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases' | 'stockAdjustmentsReport'
 
 function pageFromPath(pathname: string): AppPage {
+  if (pathname === '/supplier-returns') return 'supplierReturns'
+  if (pathname === '/warranty-claims') return 'warrantyClaims'
   if (pathname === '/stock-adjustments-report') return 'stockAdjustmentsReport'
   if (pathname === '/supplier-purchases') return 'supplierPurchases'
   if (pathname === '/stock-valuation') return 'stockValuation'
@@ -55,6 +59,8 @@ function pageFromPath(pathname: string): AppPage {
 }
 
 function pathForPage(page: AppPage) {
+  if (page === 'supplierReturns') return '/supplier-returns'
+  if (page === 'warrantyClaims') return '/warranty-claims'
   if (page === 'stockAdjustmentsReport') return '/stock-adjustments-report'
   if (page === 'supplierPurchases') return '/supplier-purchases'
   if (page === 'stockValuation') return '/stock-valuation'
@@ -119,6 +125,8 @@ function App() {
 
   if (isSignedIn && user) {
     const renderPage = () => {
+    if (currentPage === 'supplierReturns') return <SupplierReturnsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'warrantyClaims') return <WarrantyClaimsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'stockAdjustmentsReport') return <StockAdjustmentsReportPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'supplierPurchases') return <SupplierPurchasesPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'stockValuation') return <StockValuationPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
