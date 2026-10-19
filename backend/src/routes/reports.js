@@ -20,7 +20,7 @@ router.use(async (req, res, next) => {
     next();
   } catch (error) { next(error); }
 });
-const adminOnly = (req, res, next) => req.user.customRoleId || !['admin', 'super_admin'].includes(req.user.role) ? res.status(403).json({ message: 'Administrator access required.' }) : next();
+const adminOnly = (req, res, next) => !req.permissionsChecked && (req.user.customRoleId || !['admin', 'super_admin'].includes(req.user.role)) ? res.status(403).json({ message: 'Administrator access required.' }) : next();
 router.get('/stock-adjustment-items', async (req, res, next) => {
   try {
     const items = await StockMovement.findAll({ where: { companyId: req.user.companyId, branchId: req.branchId, kind: 'adjustment' }, attributes: ['itemName', 'sku'], group: ['itemName', 'sku'], order: [['itemName', 'ASC'], ['sku', 'ASC']], raw: true });
@@ -143,7 +143,7 @@ router.get('/profit', async (req, res, next) => {
       SaleReturn.findAll({ where: { ...scope, createdAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['id', 'saleId', 'customerName', 'refundCents', 'lines', 'createdAt'] }),
       SupplierReturn.findAll({ where: { ...scope, status: 'Refunded', resolvedAt: { [Op.gte]: start, [Op.lt]: end } }, attributes: ['currency', [fn('SUM', literal('quantity * unit_price_cents')), 'totalCents'], [fn('COUNT', col('id')), 'count']], group: ['currency'], raw: true }),
     ]);
-    const canResolve = !req.user.customRoleId && ['admin', 'super_admin'].includes(req.user.role);
+    const canResolve = req.effectivePermissions ? req.effectivePermissions.includes('profitReport.edit') : !req.user.customRoleId && ['admin', 'super_admin'].includes(req.user.role);
     const missingSales = canResolve ? sales.flatMap(sale => {
       const lines = typeof sale.lines === 'string' ? JSON.parse(sale.lines) : sale.lines;
       return lines.flatMap((line, index) => Number.isSafeInteger(line.unitCostCents) && line.unitCostCents >= 0 ? [] : [{ saleId: sale.id, lineIndex: index, name: line.name, quantity: line.quantity, customerName: sale.customerName, completedAt: sale.createdAt }]);

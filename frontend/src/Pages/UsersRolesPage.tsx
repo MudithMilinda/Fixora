@@ -45,7 +45,7 @@ export default function UsersRolesPage(props: Props) {
       <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#7a8090]">Management</p>
       <h1 className="mt-2 text-3xl font-bold">Users &amp; Roles</h1>
       <p className="mt-1 text-sm text-[#747a89]">Create roles and assign your team to branches.</p>
-      <p className="mt-4 rounded-xl bg-[#fff7e8] p-3 text-sm text-[#795b21]">Roles identify team members. Role-based permissions are not configured yet.</p>
+      <p className="mt-4 text-sm text-[#747a89]">New and existing roles need permissions assigned before their users can access protected sections. Assign permissions on the <a className="font-semibold text-[#8b5d40] underline" href="/permissions">Permissions page</a>.</p>
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
         <section className="rounded-2xl border border-[#e8e9ed] bg-white p-5"><h2 className="text-lg font-semibold">Create role</h2><form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={createRole}><label className="min-w-48 flex-1 text-xs text-[#4b5260]">Role name<input className={input} name="name" placeholder="Branch manager" minLength={2} maxLength={120} required /></label><button className={button} disabled={saving}>Create role</button></form><div className="mt-5 flex flex-wrap gap-2">{roles.map(role => <span key={role.id} className="rounded-full bg-[#f1f1f3] px-3 py-1 text-xs">{role.name}</span>)}{!roles.length && <p className="text-sm text-[#747a89]">No custom roles yet.</p>}</div></section>
         <section className="rounded-2xl border border-[#e8e9ed] bg-white p-5"><h2 className="text-lg font-semibold">Create user</h2><form className="mt-4 grid gap-4" onSubmit={createUser}>

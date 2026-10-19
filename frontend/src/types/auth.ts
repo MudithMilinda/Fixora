@@ -5,5 +5,6 @@ export type AuthUser = {
   role: 'admin' | 'super_admin'
   customRoleId?: string | null
   companyId?: string | null
+  permissions?: string[]
   activeBranchId?: string | null
 }

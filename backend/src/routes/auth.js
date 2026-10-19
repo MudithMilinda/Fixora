@@ -6,6 +6,7 @@ const Branch = require("../models/Branch");
 const UserBranch = require("../models/UserBranch");
 const { cookieOptions, createSessionToken } = require("../config/auth");
 const { requireAuth } = require("../middleware/requireAuth");
+const { effective } = require("../services/permissions");
 
 const router = express.Router();
 
@@ -17,8 +18,8 @@ const loginLimiter = rateLimit({
   message: { success: false, message: "Too many sign-in attempts. Please try again in 15 minutes." },
 });
 
-function publicUser(user) {
-  return { id: user.id, fullName: user.fullName, email: user.email, role: user.role, customRoleId: user.customRoleId, companyId: user.companyId, activeBranchId: user.activeBranchId };
+async function publicUser(user) {
+  return { id: user.id, fullName: user.fullName, email: user.email, role: user.role, customRoleId: user.customRoleId, companyId: user.companyId, activeBranchId: user.activeBranchId, permissions: await effective(user) };
 }
 
 router.post("/login", loginLimiter, async (req, res, next) => {
@@ -37,18 +38,18 @@ router.post("/login", loginLimiter, async (req, res, next) => {
     }
 
     res.cookie("fixora_session", createSessionToken(user), cookieOptions);
-    return res.status(200).json({ success: true, user: publicUser(user) });
+    return res.status(200).json({ success: true, user: await publicUser(user) });
   } catch (error) {
     return next(error);
   }
 });
 
-router.get("/me", requireAuth, (req, res) => {
-  res.status(200).json({ success: true, user: publicUser(req.user) });
+router.get("/me", requireAuth, async (req, res, next) => {
+  try { res.status(200).json({ success: true, user: await publicUser(req.user) }); } catch (error) { next(error); }
 });
 
 router.get('/branches', requireAuth, async (req,res,next) => { try { const access=await UserBranch.findAll({where:{userId:req.user.id}}); const branchIds=access.map(row=>row.branchId); const branches=await Branch.findAll({where:{id:branchIds,isActive:true},order:[['name','ASC']]}); res.json({success:true,branches:branches.map(branch=>({id:branch.id,name:branch.name,code:branch.code}))}); } catch(error){next(error)} });
-router.patch('/active-branch', requireAuth, async (req,res,next) => { try { const branchId=typeof req.body.branchId==='string'?req.body.branchId:''; const access=await UserBranch.findOne({where:{userId:req.user.id,branchId}}); if(!access)return res.status(403).json({success:false,message:'You do not have access to this branch.'}); await req.user.update({activeBranchId:branchId}); return res.json({success:true,user:publicUser(req.user)}); } catch(error){next(error)} });
+router.patch('/active-branch', requireAuth, async (req,res,next) => { try { const branchId=typeof req.body.branchId==='string'?req.body.branchId:''; const access=await UserBranch.findOne({where:{userId:req.user.id,branchId}}); if(!access)return res.status(403).json({success:false,message:'You do not have access to this branch.'}); await req.user.update({activeBranchId:branchId}); return res.json({success:true,user:await publicUser(req.user)}); } catch(error){next(error)} });
 
 router.patch("/profile", requireAuth, async (req, res, next) => {
   try {
@@ -59,7 +60,7 @@ router.patch("/profile", requireAuth, async (req, res, next) => {
     }
 
     await req.user.update({ fullName });
-    return res.status(200).json({ success: true, message: "Profile saved.", user: publicUser(req.user) });
+    return res.status(200).json({ success: true, message: "Profile saved.", user: await publicUser(req.user) });
   } catch (error) {
     return next(error);
   }

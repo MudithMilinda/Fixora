@@ -16,6 +16,9 @@ const usersRoutes = require('./routes/users');
 const stockMovementRoutes = require('./routes/stockMovements');
 const salesRoutes = require('./routes/sales');
 const warrantyClaimRoutes = require('./routes/warrantyClaims');
+const permissionsRoutes = require('./routes/permissions');
+const { requireAuth } = require('./middleware/requireAuth');
+const { gate } = require('./middleware/permissionGate');
 const supplierReturnRoutes = require('./routes/supplierReturns');
 const reportsRoutes = require('./routes/reports');
 const branchRoutes = require("./routes/branches");
@@ -74,6 +77,8 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use('/api/permissions', permissionsRoutes);
+for (const resource of ['repairs','warranty-claims','items','stocks','stock-movements','stock-requests','purchase-orders','quotations','sales','supplier-returns','reports','suppliers','technicians','branches','users','company-settings']) app.use(`/api/${resource}`, requireAuth, gate(resource));
 app.use("/api/repairs", repairRoutes);
 app.use("/api/items", itemRoutes);
 app.use("/api/stocks", stockRoutes);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import AdminLoginPage from './Pages/LoginPage'
 import DashboardPage from './Pages/DashboardPage'
+import Sidebar from './Components/Sidebar'
 import ProfilePage from './Pages/ProfilePage'
 import RepairJobsPage from './Pages/RepairJobsPage'
 import RepairHistoryPage from './Pages/RepairHistoryPage'
@@ -22,15 +23,17 @@ import PaymentsPage from './Pages/PaymentsPage'
 import SalesReturnsPage from './Pages/SalesReturnsPage'
 import PaymentHistoryPage from './Pages/PaymentHistoryPage'
 import WarrantyClaimsPage from './Pages/WarrantyClaimsPage'
+import PermissionsPage from './Pages/PermissionsPage'
 import SupplierReturnsPage from './Pages/SupplierReturnsPage'
 import TechniciansPage from './Pages/TechniciansPage'
 import type { AuthUser } from './types/auth'
 import api from './api/axios'
 import { CompanyBrandingProvider } from './CompanyBrandingContext'
 
-type AppPage = 'supplierReturns' | 'warrantyClaims' | 'salesReturns' | 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases' | 'stockAdjustmentsReport'
+type AppPage = 'permissions' | 'supplierReturns' | 'warrantyClaims' | 'salesReturns' | 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases' | 'stockAdjustmentsReport'
 
 function pageFromPath(pathname: string): AppPage {
+  if (pathname === '/permissions') return 'permissions'
   if (pathname === '/supplier-returns') return 'supplierReturns'
   if (pathname === '/warranty-claims') return 'warrantyClaims'
   if (pathname === '/stock-adjustments-report') return 'stockAdjustmentsReport'
@@ -59,6 +62,7 @@ function pageFromPath(pathname: string): AppPage {
 }
 
 function pathForPage(page: AppPage) {
+  if (page === 'permissions') return '/permissions'
   if (page === 'supplierReturns') return '/supplier-returns'
   if (page === 'warrantyClaims') return '/warranty-claims'
   if (page === 'stockAdjustmentsReport') return '/stock-adjustments-report'
@@ -125,6 +129,8 @@ function App() {
 
   if (isSignedIn && user) {
     const renderPage = () => {
+    if (currentPage === 'dashboard' && !user.permissions?.includes('dashboard.view')) return <div className="flex h-dvh bg-[#f5f5f7] max-[1100px]:h-auto max-[1100px]:flex-col"><Sidebar user={user} activePage="dashboard" onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} /><main className="p-7"><h1 className="text-2xl font-bold">Access denied</h1><p className="mt-2 text-sm text-[#747a89]">You do not have permission to view the dashboard.</p></main></div>
+    if (currentPage === 'permissions') return <PermissionsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'supplierReturns') return <SupplierReturnsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'warrantyClaims') return <WarrantyClaimsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'stockAdjustmentsReport') return <StockAdjustmentsReportPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />

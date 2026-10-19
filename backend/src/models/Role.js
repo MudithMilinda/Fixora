@@ -4,4 +4,6 @@ module.exports = sequelize.define('Role', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   companyId: { type: DataTypes.UUID, allowNull: false, field: 'company_id' },
   name: { type: DataTypes.STRING(120), allowNull: false },
+  permissions: { type: DataTypes.JSON, allowNull: true },
+  ownerAdminId: { type: DataTypes.UUID, allowNull: true },
 }, { tableName: 'roles', underscored: true, indexes: [{ unique: true, fields: ['company_id', 'name'] }] });

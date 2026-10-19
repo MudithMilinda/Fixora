@@ -40,7 +40,7 @@ router.get('/', async (req, res, next) => {
 });
 
 router.post('/', async (req, res, next) => {
-  if (req.user.customRoleId) return res.status(403).json({ success: false, message: 'Administrator access required.' });
+  if (!req.permissionsChecked && req.user.customRoleId) return res.status(403).json({ success: false, message: 'Administrator access required.' });
   const transaction = await Branch.sequelize.transaction();
   try {
     const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';

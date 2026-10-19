@@ -16,7 +16,7 @@ function SidebarSection({ title, icon, active, children }: { title: string; icon
     </>
 }
 
-function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenInventory = () => { window.location.href = '/inventory' }, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'supplierReturns' | 'warrantyClaims' | 'salesReturns' | 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases' | 'stockAdjustmentsReport', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenInventory?: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
+function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory, onOpenInventory = () => { window.location.href = '/inventory' }, onOpenProfile, onSignOut }: { user: AuthUser, activePage: 'permissions' | 'supplierReturns' | 'warrantyClaims' | 'salesReturns' | 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases' | 'stockAdjustmentsReport', onGoDashboard: () => void, onOpenRepairs: () => void, onOpenHistory: () => void, onOpenInventory?: () => void, onOpenProfile: () => void, onSignOut: () => void }) {
     const initials = user.fullName.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'U'
     const roleLabel = user.customRoleId ? 'Team member' : user.role === 'super_admin' ? 'Super Admin' : 'Administrator'
     const { company } = useCompanyBranding()
@@ -33,7 +33,7 @@ function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory
                 <span className="text-[1.05rem] font-bold tracking-tight" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{companyName}</span>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-[1100px]:overflow-visible">
-            <nav aria-label="Main navigation">
+            {user.permissions?.includes('dashboard.view') && <nav aria-label="Main navigation">
                 <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-semibold transition ${activePage === 'dashboard' ? 'bg-[#29292c] text-white ring-1 ring-inset ring-white/[0.06]' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={onGoDashboard} aria-current={activePage === 'dashboard' ? 'page' : undefined}>
                     <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M3.5 10.5 12 3.8l8.5 6.7" />
@@ -41,7 +41,7 @@ function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory
                     </svg>
                     Dashboard
                 </button>
-            </nav>
+            </nav>}
 
             <SidebarSection title="Repair management" active={activePage === 'repairs' || activePage === 'history' || activePage === 'warrantyClaims'} icon={<svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.5 5.5L3.8 17.2a2.1 2.1 0 0 0 3 3l5.4-5.4a4 4 0 0 0 5.5-5.5l-2.5 2.5-3-3z" /></svg>}>
                 <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-normal transition ${activePage === 'repairs' ? 'bg-[#29292c] text-white ring-1 ring-inset ring-white/[0.06]' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={onOpenRepairs} aria-current={activePage === 'repairs' ? 'page' : undefined}>
@@ -73,11 +73,12 @@ function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory
                 <button className={`mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-normal transition ${activePage === 'supplierReturns' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" aria-current={activePage === 'supplierReturns' ? 'page' : undefined} onClick={() => { window.location.href = '/supplier-returns' }}>Supplier returns</button>
                 <button className={`mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-normal transition ${activePage === 'salesReturns' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" aria-current={activePage === 'salesReturns' ? 'page' : undefined} onClick={() => { window.location.href = '/sales-returns' }}>Sales returns</button>
             </SidebarSection>
-            <SidebarSection title="Management" active={activePage === 'suppliers' || activePage === 'technicians' || activePage === 'branches' || activePage === 'usersRoles'} icon="♙">
+            <SidebarSection title="Management" active={activePage === 'suppliers' || activePage === 'technicians' || activePage === 'branches' || activePage === 'usersRoles' || activePage === 'permissions'} icon="♙">
                 <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-normal transition ${activePage === 'suppliers' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/suppliers' }}>Suppliers</button>
                 <button className={`mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-normal transition ${activePage === 'technicians' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/technicians' }}>Technicians</button>
                 <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-normal transition ${activePage === 'branches' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/branches' }}>Create branch</button>
                 {!user.customRoleId && <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-normal ${activePage === 'usersRoles' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/users-roles' }}>Users &amp; Roles</button>}
+                {!user.customRoleId && <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] font-normal ${activePage === 'permissions' ? 'bg-[#29292c] text-white' : 'text-[#b5b5ba] hover:bg-white/[0.06] hover:text-white'}`} type="button" onClick={() => { window.location.href = '/permissions' }}>Permissions</button>}
             </SidebarSection>
 
             <SidebarSection title="Settings" active={activePage === 'companySettings'} icon="⚙">

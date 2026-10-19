@@ -74,6 +74,11 @@ async function initializeDatabase() {
     }
   }
 
+  if (!userColumns.permissions) await queryInterface.addColumn('users', 'permissions', { type: Sequelize.JSON, allowNull: true });
+  const roleColumns = await queryInterface.describeTable('roles');
+  if (!roleColumns.permissions) await queryInterface.addColumn('roles', 'permissions', { type: Sequelize.JSON, allowNull: true });
+  if (!roleColumns.owner_admin_id) await queryInterface.addColumn('roles', 'owner_admin_id', { type: Sequelize.UUID, allowNull: true });
+
   const repairColumns = await queryInterface.describeTable("repair_jobs");
   const addRepairColumn = async (name, definition) => {
     if (repairColumns[name]) return;
