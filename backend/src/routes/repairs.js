@@ -6,6 +6,7 @@ const Branch = require("../models/Branch");
 const UserBranch = require("../models/UserBranch");
 const { recordMovement } = require("../services/stockMovement");
 const { requireAuth } = require("../middleware/requireAuth");
+const { warrantyDates, warrantyPeriodDates, warrantyStatus, completedStatuses } = require('../services/repairWarranty');
 const { pagination } = require('../services/pagination');
 
 const router = express.Router();
@@ -58,6 +59,8 @@ function serialize(job) {
     promisedDate: job.promisedDate,
     priority: job.priority,
     parts: readParts(job.parts),
+    warrantyDays: job.warrantyDays ?? null, warrantyStart: job.warrantyStart || null, warrantyEnd: job.warrantyEnd || null, warrantyStatus: warrantyStatus(job),
+    parentRepairId: job.parentRepairId || null, parentJobNumber: job.parentJobNumber || null, warrantyClaim: !!job.warrantyClaim,
     createdAt: job.createdAt,
   };
 }
@@ -96,8 +99,10 @@ router.post("/", async (req, res, next) => {
     const priority = ["Normal", "High", "Urgent"].includes(req.body.priority) ? req.body.priority : "Normal";
     const promisedDate = req.body.promisedDate ? new Date(req.body.promisedDate) : null;
     const requestedParts = Array.isArray(req.body.parts) ? req.body.parts : [];
+    const parentRepairId = req.body.parentRepairId;
+    if (parentRepairId !== undefined && (typeof parentRepairId !== 'string' || !parentRepairId)) return res.status(400).json({ message: 'Select a valid original repair.' });
 
-    if (!customerName || !assetName || !issue || customerName.length > 120 || assetName.length > 160 || issue.length > 5000) {
+    if (!customerName || !assetName || !issue || customerName.length > 120 || customerPhone.length > 32 || assetName.length > 160 || assetIdentifier.length > 160 || issue.length > 5000) {
       return res.status(400).json({ success: false, message: "Customer, asset, and repair issue are required." });
     }
     if (promisedDate && Number.isNaN(promisedDate.getTime())) {
@@ -106,7 +111,12 @@ router.post("/", async (req, res, next) => {
 
     const jobNumber = `REP-${Date.now().toString().slice(-8)}`;
     const job = await RepairJob.sequelize.transaction(async transaction => {
-      const created = await RepairJob.create({ jobNumber, customerName, customerPhone: customerPhone || null, assetName, assetType, assetIdentifier: assetIdentifier || null, issue, technician: technician || null, promisedDate, priority, branchId: req.branchId, parts: [], createdBy: req.user.id }, { transaction });
+      let parent = null;
+      if (parentRepairId) {
+        parent = await RepairJob.findOne({ where: { id: parentRepairId, branchId: req.branchId }, transaction, lock: transaction.LOCK.UPDATE });
+        if (!parent || !completedStatuses.includes(parent.status)) throw Object.assign(new Error('The original completed repair was not found in this branch.'), { status: 400 });
+      }
+      const created = await RepairJob.create({ jobNumber, customerName, customerPhone: customerPhone || null, assetName, assetType, assetIdentifier: assetIdentifier || null, issue, technician: technician || null, promisedDate, priority, branchId: req.branchId, parts: [], createdBy: req.user.id, parentRepairId: parent?.id || null, parentJobNumber: parent?.jobNumber || null, warrantyClaim: parent ? warrantyStatus(parent) === 'active' : false }, { transaction });
       const parts = await assignParts(req, created, requestedParts, transaction);
       if (parts.length) await created.update({ parts }, { transaction });
       return created;
@@ -118,6 +128,29 @@ router.post("/", async (req, res, next) => {
   }
 });
 
+router.get('/customer-suggestions', async (req, res, next) => {
+  try {
+    const query = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 120) : '';
+    if (query.length < 2) return res.json({ customers: [] });
+    const jobs = await RepairJob.findAll({ where: { branchId: req.branchId, customerName: { [Op.like]: `%${query}%` } }, attributes: ['id', 'jobNumber', 'assetName', 'customerName', 'customerPhone'], order: [['updatedAt', 'DESC'], ['id', 'DESC']], limit: 100, raw: true });
+    const customers = new Map();
+    for (const job of jobs) {
+      // Without a phone number there is no reliable way to join two people with the same name.
+      const key = job.customerPhone ? JSON.stringify([job.customerName, job.customerPhone]) : job.id;
+      if (!customers.has(key)) customers.set(key, { id: job.id, name: job.customerName, phone: job.customerPhone || null, jobNumber: job.jobNumber, assetName: job.assetName });
+    }
+    res.json({ customers: [...customers.values()].slice(0, 20) });
+  } catch (error) { next(error); }
+});
+router.get('/customer-history/:id', async (req, res, next) => {
+  try {
+    const source = await RepairJob.findOne({ where: { id: req.params.id, branchId: req.branchId } });
+    if (!source) return res.status(404).json({ message: 'Customer history not found in this branch.' });
+    const where = source.customerPhone ? { branchId: req.branchId, customerName: source.customerName, customerPhone: source.customerPhone } : { branchId: req.branchId, id: source.id };
+    const jobs = await RepairJob.findAll({ where, order: [['updatedAt', 'DESC'], ['id', 'DESC']], limit: 100 });
+    res.json({ jobs: jobs.map(serialize) });
+  } catch (error) { next(error); }
+});
 router.get("/history", async (req, res, next) => {
   try {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
@@ -179,7 +212,12 @@ router.patch("/:id", async (req, res, next) => {
       const locked = await RepairJob.findOne({ where: { id: req.params.id, branchId: req.branchId }, transaction, lock: transaction.LOCK.UPDATE });
       if (!locked) throw Object.assign(new Error('Repair job not found.'), { status: 404 });
       const parts = [...readParts(locked.parts), ...await assignParts(req, locked, requestedParts, transaction)];
-      await locked.update({ customerName, assetName, issue, assetType, priority, status, promisedDate, parts, customerPhone: typeof req.body.customerPhone === 'string' ? req.body.customerPhone.trim() || null : locked.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === 'string' ? req.body.assetIdentifier.trim() || null : locked.assetIdentifier, technician: typeof req.body.technician === 'string' ? req.body.technician.trim() || null : locked.technician }, { transaction });
+      let warranty = {};
+      if (completedStatuses.includes(status) && !completedStatuses.includes(locked.status) && locked.warrantyDays == null) {
+        const days = req.body.warrantyDays === undefined ? 0 : req.body.warrantyDays;
+        warranty = req.body.warrantyPeriod === undefined ? warrantyDates(days) : warrantyPeriodDates(req.body.warrantyPeriod?.count, req.body.warrantyPeriod?.unit);
+      }
+      await locked.update({ customerName, assetName, issue, assetType, priority, status, promisedDate: req.body.promisedDate === undefined ? locked.promisedDate : promisedDate, parts, ...warranty, customerPhone: typeof req.body.customerPhone === 'string' ? req.body.customerPhone.trim() || null : locked.customerPhone, assetIdentifier: typeof req.body.assetIdentifier === 'string' ? req.body.assetIdentifier.trim() || null : locked.assetIdentifier, technician: typeof req.body.technician === 'string' ? req.body.technician.trim() || null : locked.technician }, { transaction });
       return locked;
     });
     return res.status(200).json({ success: true, message: "Repair job updated.", job: serialize(updated) });
@@ -190,6 +228,7 @@ router.delete("/:id", async (req, res, next) => {
   try {
     const job = await RepairJob.findOne({ where: { id: req.params.id, branchId: req.branchId } });
     if (!job) return res.status(404).json({ success: false, message: "Repair job not found." });
+    if (await RepairJob.findOne({ where: { parentRepairId: job.id, branchId: req.branchId } })) return res.status(409).json({ success: false, message: 'This repair has linked follow-up jobs and cannot be deleted.' });
     await job.destroy();
     return res.status(204).end();
   } catch (error) { return next(error); }

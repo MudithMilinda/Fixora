@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "../Components/Sidebar";
 import Toast from "../Components/Toast";
-import CompleteSaleModal from "../Components/CompleteSaleModal";
+import CompleteSaleModal, { type SaleWarrantyDraft } from "../Components/CompleteSaleModal";
 import AddCustomSaleItemModal from "../Components/AddCustomSaleItemModal";
 import SaleInvoiceModal from "../Components/SaleInvoiceModal";
 import { takeRepairPaymentDraft, type CompletedSale, type RepairPaymentDraft } from "../data/paymentHistory";
@@ -236,7 +236,7 @@ export default function PaymentsPage(props: {
       });
     setIsCompleteSaleOpen(true);
   }
-  async function completeSale(customer: { name: string; phone: string }) {
+  async function completeSale(customer: { name: string; phone: string; warranties: SaleWarrantyDraft[] }) {
     if (savingSale) return;
     setSavingSale(true);
     setSaleError('');
@@ -249,10 +249,10 @@ export default function PaymentsPage(props: {
         customerPhone: customer.phone,
         discount,
         payments: payments.map(({ method, amount }) => ({ method, amount })),
-        lines: lines.map(line => line.repairPartIndex !== undefined
+        lines: lines.map((line, index) => ({ ...(line.repairPartIndex !== undefined
           ? { type: 'repair', partIndex: line.repairPartIndex, quantity: line.saleQuantity }
           : line.isCustom ? { type: 'custom', name: line.name, unitPrice: line.sellingPrice, quantity: line.saleQuantity }
-          : { type: 'stock', stockId: line.id, quantity: line.saleQuantity }),
+          : { type: 'stock', stockId: line.id, quantity: line.saleQuantity }), warranty: customer.warranties[index] })),
       });
       setIsCompleteSaleOpen(false);
       setCompletedSale(data.sale);
@@ -733,6 +733,7 @@ export default function PaymentsPage(props: {
       {isCompleteSaleOpen && (
         <CompleteSaleModal
           total={money(total)}
+          items={lines.map(line => ({ name: line.name, sku: line.sku, quantity: line.saleQuantity }))}
           onClose={() => setIsCompleteSaleOpen(false)}
           onConfirm={completeSale}
           saving={savingSale}

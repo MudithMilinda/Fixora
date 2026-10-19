@@ -4,6 +4,7 @@ export type CompletedSaleLine = {
   sku: string | null;
   quantity: number;
   unitPrice: number;
+  warranty?: { count: number; unit: 'days' | 'months' | 'years'; start: string | null; end: string | null; numbers: string[] };
 };
 
 export type CompletedSale = {

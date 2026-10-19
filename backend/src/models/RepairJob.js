@@ -33,6 +33,12 @@ const RepairJob = sequelize.define(
     // Kept nullable for a safe migration of existing repair jobs. The API
     // always serializes a missing value as an empty list.
     parts: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
+    warrantyDays: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, field: 'warranty_days' },
+    warrantyStart: { type: DataTypes.DATEONLY, allowNull: true, field: 'warranty_start' },
+    warrantyEnd: { type: DataTypes.DATEONLY, allowNull: true, field: 'warranty_end' },
+    parentRepairId: { type: DataTypes.UUID, allowNull: true, field: 'parent_repair_id' },
+    parentJobNumber: { type: DataTypes.STRING(32), allowNull: true, field: 'parent_job_number' },
+    warrantyClaim: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'warranty_claim' },
     createdBy: { type: DataTypes.UUID, allowNull: false, field: "created_by" },
     branchId: { type: DataTypes.UUID, allowNull: true, field: "branch_id" },
   },

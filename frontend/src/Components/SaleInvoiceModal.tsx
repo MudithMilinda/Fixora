@@ -5,6 +5,8 @@ import { useCompanyBranding } from "../CompanyBrandingContext";
 const money = (value: number) =>
   `LKR ${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const warrantyDate = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
 export default function SaleInvoiceModal({
   sale,
   onClose,
@@ -32,7 +34,8 @@ export default function SaleInvoiceModal({
         @media print {
           body * { visibility: hidden !important; }
           #sale-invoice-print, #sale-invoice-print * { visibility: visible !important; }
-          #sale-invoice-print { position: fixed !important; inset: 0 !important; width: 100% !important; max-width: none !important; box-shadow: none !important; border: 0 !important; }
+          #sale-invoice-print { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; border: 0 !important; }
+          [data-invoice-body] { max-height: none !important; overflow: visible !important; }
           [data-invoice-actions] { display: none !important; }
         }
       `}</style>
@@ -65,7 +68,7 @@ export default function SaleInvoiceModal({
           <button type="button" onClick={onClose} data-invoice-actions aria-label="Close invoice" className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-xl leading-none text-[#747a89] transition hover:bg-[#f2f3f5]">×</button>
         </header>
 
-        <div className="max-h-[calc(100dvh-230px)] overflow-y-auto px-7 py-6">
+        <div data-invoice-body className="max-h-[calc(100dvh-230px)] overflow-y-auto px-7 py-6">
           <div className="flex flex-wrap justify-between gap-5 rounded-[12px] border border-[#e4e6eb] bg-[#fafafb] p-4 text-sm">
             <div><p className="text-[10px] font-semibold uppercase tracking-[.09em] text-[#7a8090]">Customer</p><strong className="mt-1 block">{customer}</strong>{sale.customerPhone && <p className="mt-1 text-xs text-[#747a89]">{sale.customerPhone}</p>}</div>
             <div className="text-left sm:text-right"><p className="text-[10px] font-semibold uppercase tracking-[.09em] text-[#7a8090]">Completed</p><strong className="mt-1 block">{new Date(sale.completedAt).toLocaleDateString("en-GB")}</strong><p className="mt-1 text-xs text-[#747a89]">{new Date(sale.completedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</p></div>
@@ -82,7 +85,7 @@ export default function SaleInvoiceModal({
 
           <table className="mt-6 w-full border-collapse border-y border-[#dfe2e7] text-left text-[13px]">
             <thead className="border-b border-[#dfe2e7] text-[10px] font-semibold uppercase tracking-[.08em] text-[#4e5562]"><tr><th className="py-3 pr-3">Item</th><th className="px-3 py-3 text-right">Price</th><th className="px-3 py-3 text-right">Qty.</th><th className="py-3 pl-3 text-right">Subtotal</th></tr></thead>
-            <tbody>{sale.lines.map((line, index) => <tr className="border-b border-[#e9ebee] last:border-b-0" key={`${line.name}-${index}`}><td className="py-3.5 pr-3"><strong className="block text-[#262b3a]">{line.name}</strong>{line.sku && <small className="mt-1 block text-xs text-[#69717f]">{line.sku}</small>}</td><td className="px-3 py-3.5 text-right tabular-nums text-[#353b48]">{money(line.unitPrice)}</td><td className="px-3 py-3.5 text-right tabular-nums text-[#353b48]">{line.quantity}</td><td className="py-3.5 pl-3 text-right font-semibold tabular-nums text-[#262b3a]">{money(line.unitPrice * line.quantity)}</td></tr>)}</tbody>
+            <tbody>{sale.lines.map((line, index) => <tr className="border-b border-[#e9ebee] last:border-b-0" key={`${line.name}-${index}`}><td className="py-3.5 pr-3"><strong className="block text-[#262b3a]">{line.name}</strong>{line.sku && <small className="mt-1 block text-xs text-[#69717f]">{line.sku}</small>}{line.warranty && <div className="mt-2 text-xs leading-5 text-[#69717f]"><p>{line.warranty.count > 0 && line.warranty.end ? `Warranty: ${line.warranty.count} ${line.warranty.unit} · Until ${warrantyDate(line.warranty.end)}` : 'No warranty'}</p>{line.warranty.numbers.length > 0 && <p className="break-all">Serial / warranty number: {line.warranty.numbers.join(', ')}</p>}</div>}</td><td className="px-3 py-3.5 text-right tabular-nums text-[#353b48]">{money(line.unitPrice)}</td><td className="px-3 py-3.5 text-right tabular-nums text-[#353b48]">{line.quantity}</td><td className="py-3.5 pl-3 text-right font-semibold tabular-nums text-[#262b3a]">{money(line.unitPrice * line.quantity)}</td></tr>)}</tbody>
           </table>
 
           <dl className="ml-auto mt-5 w-full max-w-[290px] text-[13px]">

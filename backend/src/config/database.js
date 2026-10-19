@@ -91,6 +91,13 @@ async function initializeDatabase() {
   await addRepairColumn("asset_identifier", { type: Sequelize.STRING(160), allowNull: true });
   await addRepairColumn("parts", { type: Sequelize.JSON, allowNull: true });
 
+  await addRepairColumn('warranty_days', { type: Sequelize.INTEGER.UNSIGNED, allowNull: true });
+  await addRepairColumn('warranty_start', { type: Sequelize.DATEONLY, allowNull: true });
+  await addRepairColumn('warranty_end', { type: Sequelize.DATEONLY, allowNull: true });
+  await addRepairColumn('parent_repair_id', { type: Sequelize.UUID, allowNull: true });
+  await addRepairColumn('parent_job_number', { type: Sequelize.STRING(32), allowNull: true });
+  await addRepairColumn('warranty_claim', { type: Sequelize.BOOLEAN, allowNull: false, defaultValue: false });
+
   const stockColumns = await queryInterface.describeTable('stocks');
   if (!stockColumns.cost_currency) await queryInterface.addColumn('stocks', 'cost_currency', { type: Sequelize.STRING(3), allowNull: true });
   if (!stockColumns.is_archived) {

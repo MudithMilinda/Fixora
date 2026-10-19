@@ -9,6 +9,7 @@ const SaleReturn = require('../models/SaleReturn');
 const StockMovement = require('../models/StockMovement');
 const { lockStockBranch, receiveStock } = require('../services/receiveStock');
 const { prepareReturn } = require('../services/saleReturns');
+const { saleWarranty } = require('../services/saleWarranty');
 const { RepairJob } = require('../models/RepairJob');
 const { Op, where: sqlWhere, cast, col, fn } = require('sequelize');
 const { pagination } = require('../services/pagination');
@@ -134,6 +135,7 @@ router.post('/', async (req, res, next) => {
       const usedStocks = new Set(), usedParts = new Set();
       const lines = [];
       const movements = [];
+      const completedAt = new Date();
       for (const line of inputLines) {
         const quantity = Number(line.quantity);
         if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 1000000) throw bad('Enter a valid item quantity.');
@@ -153,7 +155,8 @@ router.post('/', async (req, res, next) => {
           name = typeof line.name === 'string' ? line.name.trim() : ''; sku = null; unitPrice = cents(line.unitPrice);
           if (!name || name.length > 160) throw bad('Enter a valid custom item name.');
         } else throw bad('Invalid sale item.');
-        lines.push({ name, sku, quantity, unitPrice: unitPrice / 100, unitCostCents, type: line.type, ...(line.type === 'stock' ? { stockId: line.stockId } : {}) });
+        const warranty = saleWarranty(line.warranty, quantity, completedAt);
+        lines.push({ name, sku, quantity, unitPrice: unitPrice / 100, unitCostCents, type: line.type, ...(line.type === 'stock' ? { stockId: line.stockId } : {}), ...(warranty ? { warranty } : {}) });
       }
       const subtotal = lines.reduce((sum, line) => sum + cents(line.unitPrice) * line.quantity, 0);
       if (!Number.isSafeInteger(subtotal) || subtotal > 999999999999) throw bad('Sale total is too large.');
@@ -162,7 +165,7 @@ router.post('/', async (req, res, next) => {
       const payments = inputPayments.map(payment => { if (!methods.includes(payment.method)) throw bad('Invalid payment method.'); const amount = cents(payment.amount); if (amount <= 0) throw bad('Enter a valid payment amount.'); return { method: payment.method, amount: amount / 100 }; });
       const total = subtotal - discount;
       if (payments.reduce((sum, payment) => sum + cents(payment.amount), 0) !== total) throw bad('Payment amounts must equal the sale total. Check prices and try again.');
-      const sale = await Sale.create({ requestId, companyId: req.user.companyId, branchId: req.branchId, createdBy: req.user.id, repairId: repairId || null, customerName, customerPhone, subtotalCents: subtotal, discountCents: discount, totalCents: total, lines, payments, repair }, { transaction });
+      const sale = await Sale.create({ requestId, companyId: req.user.companyId, branchId: req.branchId, createdBy: req.user.id, repairId: repairId || null, customerName, customerPhone, subtotalCents: subtotal, discountCents: discount, totalCents: total, lines, payments, repair, createdAt: completedAt }, { transaction });
       for (const movement of movements) await recordMovement({ stock: movement.stock, req, kind: 'sale', change: -movement.quantity, balanceAfter: movement.balanceAfter, referenceId: sale.id, transaction });
       return sale;
     });

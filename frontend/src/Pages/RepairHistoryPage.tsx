@@ -29,10 +29,14 @@ function RepairHistoryPage({
   onSignOut: () => void;
 }) {
   const [jobs, setJobs] = useState<RepairJob[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
   const [status, setStatus] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [followUp, setFollowUp] = useState<RepairJob | null>(null);
+  const [followUpIssue, setFollowUpIssue] = useState('');
+  const [followUpSaving, setFollowUpSaving] = useState(false);
+  const [followUpError, setFollowUpError] = useState('');
   const [viewJob, setViewJob] = useState<RepairJob | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; tone: "error" } | null>(
@@ -63,6 +67,17 @@ function RepairHistoryPage({
           new Date(value),
         )
       : "Not set";
+  async function createFollowUp(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!followUp || !followUpIssue.trim()) return;
+    setFollowUpSaving(true); setFollowUpError('');
+    try {
+      const { data } = await api.post('/repairs', { parentRepairId: followUp.id, customerName: followUp.customerName, customerPhone: followUp.customerPhone, assetName: followUp.assetName, assetType: followUp.assetType, assetIdentifier: followUp.assetIdentifier, issue: followUpIssue.trim() });
+      window.location.href = `/repair-jobs?search=${encodeURIComponent(data.job.jobNumber)}`;
+    } catch (error) { setFollowUpError(getApiError(error, 'Unable to create follow-up repair.')) }
+    finally { setFollowUpSaving(false) }
+  }
+  const warrantyLabel = (job: RepairJob) => job.warrantyStatus === 'active' ? 'Active' : job.warrantyStatus === 'expired' ? 'Expired' : job.warrantyStatus === 'none' ? 'No warranty' : job.warrantyStatus === 'not_started' ? 'Not started' : 'Not recorded';
   const filteredJobs = jobs;
   const partsTotal = (job: RepairJob) => (job.parts || []).reduce((total, part) => total + part.total, 0);
 
@@ -142,14 +157,15 @@ function RepairHistoryPage({
                   <th className="px-2 py-3">Technician</th>
                   <th className="px-2 py-3">Promised date</th>
                   <th className="px-2 py-3">Parts cost</th>
-                  <th className="px-2 py-3 text-right">Receipt</th>
+                  <th className="px-2 py-3">Warranty</th>
+                  <th className="px-2 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-2 py-10 text-center text-sm text-[#7b8190]"
                     >
                       Loading repair history…
@@ -157,7 +173,7 @@ function RepairHistoryPage({
                   </tr>
                 ) : filteredJobs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-2 py-12 text-center">
+                    <td colSpan={8} className="px-2 py-12 text-center">
                       <p className="font-semibold text-[#444a56]">
                         No repair history found
                       </p>
@@ -176,6 +192,7 @@ function RepairHistoryPage({
                         <p className="font-semibold text-[#2b3039]">
                           {job.jobNumber}
                         </p>
+                        {job.parentJobNumber && <p className="mt-1 text-xs text-[#8b5d40]">{job.warrantyClaim ? 'Warranty follow-up' : 'Follow-up'} · {job.parentJobNumber}</p>}
                         <p className="mt-1 max-w-[220px] truncate text-xs text-[#7b8190]">
                           {job.issue}
                         </p>
@@ -202,7 +219,8 @@ function RepairHistoryPage({
                         {formatDate(job.promisedDate)}
                       </td>
                       <td className="px-2 py-4 text-xs font-semibold text-[#5a6170]">Rs. {partsTotal(job).toFixed(2)}</td>
-                      <td className="px-2 py-4 text-right"><button className="rounded-lg border border-[#dfe1e6] px-3 py-1.5 text-xs font-semibold text-[#555b68] hover:bg-[#f4f4f5]" type="button" onClick={() => setViewJob(job)}>View receipt</button></td>
+                      <td className="px-2 py-4 text-xs"><span className={`font-semibold ${job.warrantyStatus === 'active' ? 'text-[#247545]' : 'text-[#747a89]'}`}>{warrantyLabel(job)}</span>{job.warrantyEnd && <span className="mt-1 block text-[#747a89]">Until {new Date(`${job.warrantyEnd}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>}</td>
+                      <td className="px-2 py-4 text-right"><div className="flex justify-end gap-2"><button className="grid h-8 w-8 place-items-center rounded-[9px] border border-[#dfe2e7] bg-white text-[#667080] shadow-[0_1px_1px_#10101206] transition hover:border-[#cbd0d8] hover:bg-[#f6f7f8] hover:text-[#262b3a]" type="button" onClick={() => setViewJob(job)} aria-label={`View receipt for ${job.jobNumber}`} title="View receipt"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path d="M2.8 12s3.3-5.7 9.2-5.7 9.2 5.7 9.2 5.7-3.3 5.7-9.2 5.7S2.8 12 2.8 12Z" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="12" r="2.6"/></svg></button><button className="grid h-8 w-8 place-items-center rounded-[9px] border border-[#dfe2e7] bg-white text-[#667080] shadow-[0_1px_1px_#10101206] transition hover:border-[#cbd0d8] hover:bg-[#f6f7f8] hover:text-[#262b3a]" type="button" onClick={() => { setFollowUp(job); setFollowUpIssue(''); setFollowUpError('') }} aria-label={`New follow-up for ${job.jobNumber}`} title="New follow-up"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 14 5 10l4-4"/><path d="M5 10h9a5 5 0 0 1 0 10h-3"/></svg></button></div></td>
                     </tr>
                   ))
                 )}
@@ -212,6 +230,7 @@ function RepairHistoryPage({
           <Pagination page={page} total={total} disabled={isLoading} onPageChange={setPage} />
         </section>
       </main>
+      {followUp && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101012]/45 p-4"><form onSubmit={createFollowUp} role="dialog" aria-modal="true" aria-labelledby="follow-up-title" className="w-full max-w-md rounded-2xl border border-[#e7e7e9] bg-white p-6 shadow-xl"><h2 id="follow-up-title" className="text-xl font-bold">New follow-up repair</h2><p className="mt-2 text-sm text-[#747a89]">{followUp.jobNumber} · {followUp.customerName} · {followUp.assetName}</p><p className="mt-3 rounded-xl bg-[#f7f7f9] p-3 text-sm text-[#596170]">Warranty: <strong>{warrantyLabel(followUp)}</strong>{followUp.warrantyEnd ? ` · Until ${new Date(`${followUp.warrantyEnd}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}. {followUp.warrantyStatus === 'active' ? 'The new repair will be marked as a warranty follow-up.' : 'The new repair will be linked as a follow-up; warranty coverage is not recorded as active.'}</p><label className="mt-4 block text-xs font-semibold text-[#596170]">Current issue<textarea required maxLength={5000} value={followUpIssue} onChange={event => setFollowUpIssue(event.target.value)} className="mt-2 block min-h-24 w-full rounded-xl border border-[#e2e3e8] p-3 text-sm font-normal outline-none focus:border-[#171719]" placeholder="Describe the issue reported now…" /></label>{followUpError && <p role="alert" className="mt-3 text-sm text-red-700">{followUpError}</p>}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={followUpSaving} onClick={() => setFollowUp(null)} className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[#596170]">Cancel</button><button disabled={followUpSaving} className="rounded-xl bg-[#171719] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-60">{followUpSaving ? 'Creating…' : 'Create follow-up'}</button></div></form></div>}
       {viewJob && <ReceiptModal job={viewJob} onClose={() => setViewJob(null)} />}
     </div>
   );

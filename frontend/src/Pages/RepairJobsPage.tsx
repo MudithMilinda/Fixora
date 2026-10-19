@@ -26,6 +26,13 @@ export type RepairJob = {
   technician: string;
   promisedDate: string | null;
   priority: string;
+  warrantyDays: number | null;
+  warrantyStart: string | null;
+  warrantyEnd: string | null;
+  warrantyStatus: 'not_recorded' | 'none' | 'not_started' | 'active' | 'expired';
+  parentRepairId: string | null;
+  parentJobNumber: string | null;
+  warrantyClaim: boolean;
   parts?: { stockId: string; name: string; sku?: string | null; quantity: number; total: number }[];
 };
 type ToastState = { message: string; tone: "success" | "error" };
@@ -66,7 +73,7 @@ function RepairJobsPage({
   onSignOut: () => void;
 }) {
   const [jobs, setJobs] = useState<RepairJob[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -150,6 +157,7 @@ function RepairJobsPage({
     setIsCreating(true);
     try {
       const payload = {
+        ...(form.get("parentRepairId") ? { parentRepairId: form.get("parentRepairId") } : {}),
         customerName: form.get("customerName"),
         customerPhone: form.get("customerPhone"),
         assetType: form.get("assetType"),
@@ -209,11 +217,11 @@ function RepairJobsPage({
     }
   }
 
-  async function updateRepairStatus(status: string) {
+  async function updateRepairStatus(status: string, warrantyCount: number, warrantyUnit: string) {
     if (!statusJob) return;
     setIsUpdatingStatus(true);
     try {
-      const { data } = await api.patch(`/repairs/${statusJob.id}`, { status });
+      const { data } = await api.patch(`/repairs/${statusJob.id}`, { status, ...(status === "Delivered" || status === "Closed" ? { warrantyPeriod: { count: warrantyCount, unit: warrantyUnit } } : {}) });
       if (status === "Delivered") {
         const deliveredJob = data.job as RepairJob;
         saveRepairPaymentDraft({
@@ -413,6 +421,7 @@ function RepairJobsPage({
                         <p className="font-semibold text-[#2b3039]">
                           {job.jobNumber}
                         </p>
+                        {job.parentJobNumber && <p className="mt-1 text-xs text-[#8b5d40]">{job.warrantyClaim ? 'Warranty follow-up' : 'Follow-up'} · <a className="underline" href={`/repair-history?search=${encodeURIComponent(job.parentJobNumber)}`}>{job.parentJobNumber}</a></p>}
                         <p className="mt-1 max-w-[220px] truncate text-xs text-[#7b8190]">
                           {job.issue}
                         </p>
@@ -613,16 +622,18 @@ function RepairStatusModal({
   job: RepairJob;
   isUpdating: boolean;
   onClose: () => void;
-  onSave: (status: string) => void;
+  onSave: (status: string, warrantyCount: number, warrantyUnit: string) => void;
 }) {
   const [status, setStatus] = useState(job.status);
+  const [warrantyCount, setWarrantyCount] = useState("0");
+  const [warrantyUnit, setWarrantyUnit] = useState("days");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#101012]/45 p-4">
       <form
         className="w-full max-w-sm rounded-[20px] border border-[#e7e7e9] bg-[#fbfbfc] p-6 shadow-2xl"
         onSubmit={(event) => {
           event.preventDefault();
-          onSave(status);
+          onSave(status, Number(warrantyCount), warrantyUnit);
         }}
       >
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#777e8e]">
@@ -645,6 +656,7 @@ function RepairStatusModal({
             <option>Cancelled</option>
           </AppSelect>
         </label>
+        {(status === "Delivered" || status === "Closed") && job.warrantyDays == null && <div className="mt-4"><div className="grid grid-cols-2 gap-3"><label className="block text-[11px] font-semibold text-[#4b5260]">Warranty period<input type="number" min="0" max={warrantyUnit === 'days' ? 3650 : warrantyUnit === 'months' ? 120 : 10} step="1" required value={warrantyCount} onChange={event => setWarrantyCount(event.target.value)} className="mt-2 block h-11 w-full rounded-xl border border-[#e2e3e8] bg-white px-3 text-sm font-normal" /></label><div className="text-[11px] font-semibold text-[#4b5260]">Unit<AppSelect className="mt-2" aria-label="Warranty period unit" value={warrantyUnit} onChange={event => setWarrantyUnit(event.target.value)}><option value="days">Days</option><option value="months">Months</option><option value="years">Years</option></AppSelect></div></div><p className="mt-2 text-[11px] text-[#747a89]">Starts on completion. Enter 0 if no warranty applies.</p></div>}
         <div className="mt-6 flex justify-end gap-3">
           <button
             className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[#555b68] hover:bg-[#f0f0f2]"
