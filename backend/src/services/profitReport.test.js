@@ -38,6 +38,18 @@ test('stock valuation scopes active stock to branch and excludes unknown currenc
   const res = reply(); await route('/stock-valuation')[0].handle({ branchId: 'branch', query: { page: '2', search: 'Part' } }, res, e => { throw e });
   assert.equal(res.body.totalCostCents, 3750); assert.equal(res.body.sellingValueCents, 8000); assert.equal(res.body.excludedBatches, 1); assert.equal(res.body.total, 12); assert.equal(res.body.rows[1].costValueCents, null);
 });
+test('adjustment report applies filters and pagination to rows and loss totals', async t => {
+  const Movement = require('../models/StockMovement'); const { Op } = require('sequelize');
+  let filteredWhere;
+  t.mock.method(Movement, 'findAndCountAll', async options => { filteredWhere = options.where; assert.equal(options.where.companyId, 'company'); assert.equal(options.where.branchId, 'branch'); assert.equal(options.where.kind, 'adjustment'); assert.equal(options.where.adjustmentReason, 'damaged'); assert.equal(options.where[Op.or][0].itemName[Op.like], '%screen%'); assert.equal(options.where.createdAt[Op.lt].toISOString(), '2026-02-01T00:00:00.000Z'); assert.equal(options.offset, 10); return { count: 12, rows: [{ id: 'm', quantityChange: -2 }] }; });
+  t.mock.method(Movement, 'findOne', async options => { assert.equal(options.where, filteredWhere); return { damagedUnits: '5', lostUnits: '0', lossCostCents: '250000', excludedLosses: '1' }; });
+  const res = reply(); await route('/stock-adjustments')[0].handle({ user: { companyId:'company' }, branchId:'branch', query:{ page:'2', reason:'damaged', search:'screen', start:'2026-01-01T00:00:00.000Z', end:'2026-02-01T00:00:00.000Z' } }, res, e => { throw e });
+  assert.equal(res.body.total, 12); assert.deepEqual(res.body.summary, { damagedUnits:5, lostUnits:0, lossCostCents:250000, excludedLosses:1 }); assert.equal(res.body.rows[0].id, 'm');
+});
+test('adjustment report rejects invalid filters', async () => {
+  const handler = route('/stock-adjustments')[0].handle;
+  for (const query of [{ reason:'bad' }, { start:'2026-02-01T00:00:00.000Z', end:'2026-01-01T00:00:00.000Z' }, { start:'invalid' }]) { const res=reply(); await handler({ user:{companyId:'company'}, branchId:'branch', query }, res, e => { throw e }); assert.equal(res.statusCode,400); }
+});
 test('supplier purchase history scopes received orders, dates and item search before paging', async t => {
   const Order = require('../models/PurchaseOrder'); const { Op } = require('sequelize');
   t.mock.method(Order, 'findAndCountAll', async options => {

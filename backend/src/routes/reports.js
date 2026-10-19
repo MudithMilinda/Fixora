@@ -6,6 +6,7 @@ const UserBranch = require('../models/UserBranch');
 const Sale = require('../models/Sale');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const Stock = require('../models/Stock');
+const StockMovement = require('../models/StockMovement');
 const { calculateReport } = require('../services/profitReport');
 const { pagination } = require('../services/pagination');
 const router = express.Router();
@@ -18,6 +19,31 @@ router.use(async (req, res, next) => {
   } catch (error) { next(error); }
 });
 const adminOnly = (req, res, next) => req.user.customRoleId || !['admin', 'super_admin'].includes(req.user.role) ? res.status(403).json({ message: 'Administrator access required.' }) : next();
+router.get('/stock-adjustments', async (req, res, next) => {
+  try {
+    const paging = pagination({ page: req.query.page ?? '1' });
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0,160) : '';
+    const reason = req.query.reason || 'all';
+    if (!['all', 'damaged', 'lost', 'count_correction', 'other'].includes(reason)) return res.status(400).json({ message: 'Enter a valid reason.' });
+    const parseDate = value => {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) throw Object.assign(new Error('Enter a valid date range.'), { status: 400 });
+      const date = new Date(value); if (!Number.isFinite(date.getTime()) || date.toISOString() !== value) throw Object.assign(new Error('Enter a valid date range.'), { status: 400 }); return date;
+    };
+    const start = req.query.start === undefined ? null : parseDate(req.query.start), end = req.query.end === undefined ? null : parseDate(req.query.end);
+    if (start && end && start >= end) return res.status(400).json({ message: 'Enter a valid date range.' });
+    const where = { companyId: req.user.companyId, branchId: req.branchId, kind:'adjustment', ...(reason !== 'all' ? { adjustmentReason:reason } : {}), ...(search ? { [Op.or]: [{ itemName: { [Op.like]: `%${search}%` } }, { sku: { [Op.like]: `%${search}%` } }] } : {}), ...(start || end ? { createdAt: { ...(start ? { [Op.gte]:start } : {}), ...(end ? { [Op.lt]:end } : {}) } } : {}) };
+    const [result, summary] = await Promise.all([
+      StockMovement.findAndCountAll({ where, order:[['createdAt','DESC'], ['id','DESC']], limit:paging.limit, offset:paging.offset }),
+      StockMovement.findOne({ where, raw:true, attributes:[
+        [literal("COALESCE(SUM(CASE WHEN quantity_change < 0 AND adjustment_reason = 'damaged' THEN -quantity_change ELSE 0 END),0)"),'damagedUnits'],
+        [literal("COALESCE(SUM(CASE WHEN quantity_change < 0 AND adjustment_reason = 'lost' THEN -quantity_change ELSE 0 END),0)"),'lostUnits'],
+        [literal("COALESCE(SUM(CASE WHEN quantity_change < 0 AND adjustment_reason IN ('damaged','lost') AND cost_currency = 'LKR' THEN -quantity_change * unit_cost * 100 ELSE 0 END),0)"),'lossCostCents'],
+        [literal("COALESCE(SUM(CASE WHEN quantity_change < 0 AND adjustment_reason IN ('damaged','lost') AND (cost_currency IS NULL OR cost_currency <> 'LKR') THEN 1 ELSE 0 END),0)"),'excludedLosses'],
+      ] }),
+    ]);
+    res.json({ success:true, rows:result.rows, total:result.count, page:paging.page, pageSize:paging.pageSize, summary:{ damagedUnits:Number(summary.damagedUnits), lostUnits:Number(summary.lostUnits), lossCostCents:Number(summary.lossCostCents), excludedLosses:Number(summary.excludedLosses) } });
+  } catch (error) { if (error.status === 400) return res.status(400).json({ message:error.message }); next(error); }
+});
 router.get('/supplier-purchase-suppliers', async (req, res, next) => {
   try {
     const orders = await PurchaseOrder.findAll({ where: { companyId: req.user.companyId, branchId: req.branchId, status: 'Received' }, attributes: ['supplierId', 'supplierName'], group: ['supplierId', 'supplierName'], order: [['supplierName', 'ASC']], raw: true });
