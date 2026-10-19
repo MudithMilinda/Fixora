@@ -1,5 +1,6 @@
 export type CompletedSaleLine = {
   name: string;
+  type?: 'stock' | 'repair' | 'custom';
   sku: string | null;
   quantity: number;
   unitPrice: number;

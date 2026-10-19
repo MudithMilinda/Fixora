@@ -98,7 +98,7 @@ async function initializeDatabase() {
     await sequelize.query(`UPDATE stocks old_stock JOIN stocks active_stock ON old_stock.branch_id = active_stock.branch_id AND ((old_stock.item_id IS NOT NULL AND old_stock.item_id = active_stock.item_id) OR (old_stock.item_id IS NULL AND active_stock.item_id IS NULL AND old_stock.sku IS NOT NULL AND old_stock.sku <> '' AND old_stock.sku = active_stock.sku)) SET old_stock.is_archived = 1 WHERE old_stock.quantity = 0 AND active_stock.quantity > 0`);
   }
   const movementColumns = await queryInterface.describeTable('stock_movements');
-  if (!movementColumns.kind.type.toLowerCase().includes("'adjustment'")) await queryInterface.changeColumn('stock_movements', 'kind', { type: Sequelize.ENUM('manual_add', 'purchase', 'sale', 'repair', 'delete', 'adjustment'), allowNull: false });
+  if (!movementColumns.kind.type.toLowerCase().includes("'sale_return'")) await queryInterface.changeColumn('stock_movements', 'kind', { type: Sequelize.ENUM('manual_add', 'purchase', 'sale', 'repair', 'delete', 'adjustment', 'sale_return'), allowNull: false });
   for (const [name, length] of [['created_by_name', 120], ['adjustment_reason', 40], ['adjustment_note', 500]]) {
     if (!movementColumns[name]) await queryInterface.addColumn('stock_movements', name, { type: Sequelize.STRING(length), allowNull: true });
   }

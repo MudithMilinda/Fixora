@@ -1,3 +1,4 @@
+import { saleReference } from "../data/saleReference";
 import type { CompletedSale } from "../data/paymentHistory";
 import { useCompanyBranding } from "../CompanyBrandingContext";
 
@@ -59,7 +60,7 @@ export default function SaleInvoiceModal({
           <div className={showBranding ? "ml-auto shrink-0 text-right" : ""}>
             <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#7a8090]">Sales &amp; billing</p>
             <h2 id="sale-invoice-title" className="mt-2 text-2xl font-bold tracking-[-.025em]">Sale invoice</h2>
-            <p className="mt-1 text-xs text-[#747a89]">{sale.id}</p>
+            <p className="mt-1 text-xs text-[#747a89]">{saleReference(sale)}</p>
           </div>
           <button type="button" onClick={onClose} data-invoice-actions aria-label="Close invoice" className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-xl leading-none text-[#747a89] transition hover:bg-[#f2f3f5]">×</button>
         </header>

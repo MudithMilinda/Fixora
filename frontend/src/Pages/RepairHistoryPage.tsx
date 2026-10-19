@@ -1,3 +1,4 @@
+import AppDatePicker from '../Components/AppDatePicker'
 import AppSelect from '../Components/AppSelect'
 import Pagination from '../Components/Pagination'
 import { useEffect, useState } from "react";
@@ -128,8 +129,8 @@ function RepairHistoryPage({
                 ))}
               </AppSelect>
             </div>
-            <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={fromDate} onChange={(event) => { setPage(1); setFromDate(event.target.value) }} aria-label="From date" />
-            <input className="h-10 rounded-xl border border-[#e5e6ea] bg-white px-3 text-xs font-normal text-[#535966] outline-none" type="date" value={toDate} onChange={(event) => { setPage(1); setToDate(event.target.value) }} aria-label="To date" />
+            <AppDatePicker label="From date" hideLabel value={fromDate} onChange={value => { setPage(1); setFromDate(value) }} />
+            <AppDatePicker label="To date" hideLabel value={toDate} onChange={value => { setPage(1); setToDate(value) }} />
           </div>
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[760px] border-separate border-spacing-0 text-left">

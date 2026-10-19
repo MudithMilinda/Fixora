@@ -1,3 +1,4 @@
+import AppDatePicker from '../Components/AppDatePicker'
 import AppSelect from "../Components/AppSelect";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Sidebar from "../Components/Sidebar";
@@ -899,26 +900,8 @@ function QuotationEditor({
                 Quotation number
                 <div className="min-h-[42px] rounded-[10px] border border-dashed border-[#dfe1e6] bg-[#f8f8fa] px-3 py-2.5 text-[13px] font-normal text-[#747a89]">{existing?.quotationNumber || 'Auto-generated when saved'}</div>
               </div>
-              <label className="flex flex-col gap-2 text-xs font-semibold text-[#515867]">
-                Quotation date
-                <input
-                  className="min-h-[42px] w-full min-w-0 rounded-[10px] border border-[#e2e3e8] bg-white px-3 py-2.5 text-[13px] text-[#414754] outline-none focus:border-[#ad6338] focus:ring-2 focus:ring-[#ad6338]/10"
-                  type="date"
-                  required
-                  value={date}
-                  onChange={(event) => setDate(event.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs font-semibold text-[#515867]">
-                Valid until (optional)
-                <input
-                  className="min-h-[42px] w-full min-w-0 rounded-[10px] border border-[#e2e3e8] bg-white px-3 py-2.5 text-[13px] text-[#414754] outline-none focus:border-[#ad6338] focus:ring-2 focus:ring-[#ad6338]/10"
-                  type="date"
-                  min={date}
-                  value={validUntil}
-                  onChange={(event) => setValidUntil(event.target.value)}
-                />
-              </label>
+              <AppDatePicker label="Quotation date" required value={date} onChange={setDate} />
+              <AppDatePicker label="Valid until (optional)" min={date} value={validUntil} onChange={setValidUntil} />
               <label className="flex flex-col gap-2 text-xs font-semibold text-[#515867]">
                 Currency
                 <AppSelect

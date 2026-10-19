@@ -32,7 +32,7 @@ router.get('/', async (req, res, next) => {
       const bounds = dateRange(req.query).createdAt || {};
       const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0,160) : '';
       const kind = req.query.kind || 'all';
-      if (!['all','manual_add','purchase','sale','repair','delete','adjustment'].includes(kind)) return res.status(400).json({ message: 'Invalid movement type.' });
+      if (!['all','manual_add','purchase','sale','repair','delete','adjustment','sale_return'].includes(kind)) return res.status(400).json({ message: 'Invalid movement type.' });
       const conditions = ['company_id = :company', 'branch_id = :branch'];
       const replacements = { company: req.user.companyId, branch: req.branchId, limit: paging.limit, offset: paging.offset };
       if (bounds[Op.gte]) { conditions.push('created_at >= :start'); replacements.start = bounds[Op.gte]; }

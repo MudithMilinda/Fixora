@@ -1,3 +1,4 @@
+import AppDatePicker from '../Components/AppDatePicker'
 import { useEffect, useState } from 'react'
 import Sidebar from '../Components/Sidebar'
 import ResolveReportData from '../Components/ResolveReportData'
@@ -6,7 +7,7 @@ import api, { getApiError } from '../api/axios'
 import type { AuthUser } from '../types/auth'
 
 type Props = { user: AuthUser; onGoDashboard: () => void; onOpenRepairs: () => void; onOpenHistory: () => void; onOpenProfile: () => void; onSignOut: () => void }
-type Report = { revenueCents: number; knownCostCents: number; grossProfitCents: number | null; unknownCostLines: number; saleCount: number; purchaseCents: number; purchaseCount: number; excludedCurrencyOrders: number; stockValueCents: number; unknownStockBatches: number; undatedOrders: number }
+type Report = { refundCents: number; returnCount: number; revenueCents: number; knownCostCents: number; grossProfitCents: number | null; unknownCostLines: number; saleCount: number; purchaseCents: number; purchaseCount: number; excludedCurrencyOrders: number; stockValueCents: number; unknownStockBatches: number; undatedOrders: number }
 const dateValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 const money = (cents: number) => `LKR ${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -32,7 +33,7 @@ export default function ProfitReportPage(props: Props) {
   }, [from, to, revision])
   const cards = report ? [
     { kind: 'purchases' as const, label: 'Stock purchases', value: money(report.purchaseCents), detail: `${report.purchaseCount} received purchase orders`, color: 'text-[#262b3a]' },
-    { kind: 'revenue' as const, label: 'Sales revenue', value: money(report.revenueCents), detail: `${report.saleCount} completed sales after discounts`, color: 'text-[#262b3a]' },
+    { kind: 'revenue' as const, label: 'Sales revenue', value: money(report.revenueCents), detail: `${report.saleCount} sales · ${report.returnCount} returns in this period`, color: 'text-[#262b3a]' },
     { kind: 'cost' as const, label: 'Cost of sold items', value: money(report.knownCostCents), detail: report.unknownCostLines ? 'Known costs only' : 'Recorded cost of sold items', color: 'text-[#262b3a]' },
     { kind: 'profit' as const, label: 'Gross profit', value: report.grossProfitCents === null ? 'Unavailable' : money(report.grossProfitCents), detail: report.grossProfitCents === null ? 'Some item costs are missing' : 'Sales revenue minus cost of sold items', color: 'text-[#247545]' },
     { kind: 'stock' as const, label: 'Remaining stock value', value: money(report.stockValueCents), detail: report.unknownStockBatches ? 'Known LKR costs only' : 'Current stock at purchase cost', color: 'text-[#262b3a]' },
@@ -44,8 +45,8 @@ export default function ProfitReportPage(props: Props) {
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Profit report</h1>
       <p className="mt-1.5 text-sm text-[#747a89]">Review sales, stock costs and gross profit for your current branch.</p>
       <section className="mt-6 flex flex-wrap items-end gap-4 rounded-2xl border border-[#eceaf2] bg-white p-5 shadow-sm">
-        <label className="text-xs font-semibold text-[#596170]">From<input className="mt-2 block h-10 rounded-xl border border-[#e2e3e8] bg-white px-3 text-sm font-normal" type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
-        <label className="text-xs font-semibold text-[#596170]">To<input className="mt-2 block h-10 rounded-xl border border-[#e2e3e8] bg-white px-3 text-sm font-normal" type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
+        <AppDatePicker label="From" value={from} onChange={value => setFrom(value)} />
+        <AppDatePicker label="To" value={to} onChange={value => setTo(value)} />
         <p className="pb-2 text-xs text-[#747a89]">Dates use your device’s local time.</p>
       </section>
       {loading && <p className="mt-6 text-sm text-[#747a89]">Loading report…</p>}
@@ -57,7 +58,7 @@ export default function ProfitReportPage(props: Props) {
         {report.unknownStockBatches > 0 && <p className="mt-4 rounded-xl bg-[#fff7e8] p-4 text-sm leading-6 text-[#795b21]">{report.unknownStockBatches} stock batches have an unknown or non-LKR cost currency and are excluded from remaining stock value. Older stock may not have a recorded currency.</p>}
         {(report.undatedOrders > 0 || report.excludedCurrencyOrders > 0) && <p className="mt-4 rounded-xl bg-[#fff7e8] p-4 text-sm leading-6 text-[#795b21]">{report.undatedOrders > 0 && `${report.undatedOrders} older received orders have no recorded receipt date and are excluded from purchases. `}{report.excludedCurrencyOrders > 0 && `${report.excludedCurrencyOrders} received orders in other currencies are excluded; no exchange rate has been applied.`}</p>}
         {missing?.canResolve && <ResolveReportData sales={missing.missingSales} stocks={missing.missingStocks} orders={missing.missingOrders} onSaved={() => setRevision(value => value + 1)} />}
-        <div className="mt-5 rounded-2xl border border-[#eceaf2] bg-white p-5 text-sm leading-6 text-[#747a89]"><p>Stock purchases include LKR purchase orders received within the selected dates. Manually added stock is excluded because its purchase event is not recorded.</p><p className="mt-2">Remaining stock value is current, regardless of the date range. Gross profit excludes expenses such as salaries and rent; it is not net profit. Older sales stored only in a browser are excluded.</p></div>
+        <div className="mt-5 rounded-2xl border border-[#eceaf2] bg-white p-5 text-sm leading-6 text-[#747a89]"><p>Sales revenue includes refunds recorded in the selected period. Restocked item costs are reversed; damaged items retain their cost.</p><p className="mt-2">Stock purchases include LKR purchase orders received within the selected dates. Manually added stock is excluded because its purchase event is not recorded.</p><p className="mt-2">Remaining stock value is current, regardless of the date range. Gross profit excludes expenses such as salaries and rent; it is not net profit. Older sales stored only in a browser are excluded.</p></div>
       </>}
     </main>
   </div>

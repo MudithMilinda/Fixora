@@ -5,8 +5,12 @@ const UserBranch = require('../models/UserBranch');
 const Stock = require('../models/Stock');
 const { recordMovement } = require('../services/stockMovement');
 const Sale = require('../models/Sale');
+const SaleReturn = require('../models/SaleReturn');
+const StockMovement = require('../models/StockMovement');
+const { lockStockBranch, receiveStock } = require('../services/receiveStock');
+const { prepareReturn } = require('../services/saleReturns');
 const { RepairJob } = require('../models/RepairJob');
-const { Op, where: sqlWhere, cast, col } = require('sequelize');
+const { Op, where: sqlWhere, cast, col, fn } = require('sequelize');
 const { pagination } = require('../services/pagination');
 const router = express.Router();
 const methods = ['Cash', 'Credit card', 'Debit card', 'Bank transfer'];
@@ -26,7 +30,84 @@ router.use(requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 router.get('/', async (req, res, next) => {
-  try { const paging = pagination(req.query); const search = typeof req.query?.search === 'string' ? req.query.search.trim().slice(0,160) : ''; const where = { companyId: req.user.companyId, branchId: req.branchId, ...(search ? { [Op.or]: [{ id: { [Op.like]: `%${search}%` } }, { customerName: { [Op.like]: `%${search}%` } }, { customerPhone: { [Op.like]: `%${search}%` } }, sqlWhere(cast(col('lines'), 'CHAR'), { [Op.like]: `%${search}%` })] } : {}) }; const order = [['createdAt', 'DESC'], ['id','DESC']]; if (paging) { const result = await Sale.findAndCountAll({ where, order, limit:paging.limit, offset:paging.offset }); return res.json({ success:true, sales:result.rows.map(serialize), total:result.count, page:paging.page, pageSize:paging.pageSize }); } const sales = await Sale.findAll({ where, order }); res.json({ success: true, sales: sales.map(serialize) }); } catch (error) { if(error.status===400)return res.status(400).json({message:error.message}); next(error); }
+  try { const paging = pagination(req.query); const search = typeof req.query?.search === 'string' ? req.query.search.trim().slice(0,160) : ''; const where = { companyId: req.user.companyId, branchId: req.branchId, ...(search ? { [Op.or]: [{ id: { [Op.like]: `%${search}%` } }, ...(/^[a-z0-9]{1,3}-[a-z0-9]{1,3}-\d{6}-[a-f0-9]{8}$/i.test(search) ? [{ id: { [Op.like]: `%${search.slice(-8)}` } }] : []), { customerName: { [Op.like]: `%${search}%` } }, { customerPhone: { [Op.like]: `%${search}%` } }, sqlWhere(cast(col('lines'), 'CHAR'), { [Op.like]: `%${search}%` })] } : {}) }; const order = [['createdAt', 'DESC'], ['id','DESC']]; if (paging) { const result = await Sale.findAndCountAll({ where, order, limit:paging.limit, offset:paging.offset }); return res.json({ success:true, sales:result.rows.map(serialize), total:result.count, page:paging.page, pageSize:paging.pageSize }); } const sales = await Sale.findAll({ where, order }); res.json({ success: true, sales: sales.map(serialize) }); } catch (error) { if(error.status===400)return res.status(400).json({message:error.message}); next(error); }
+});
+router.get('/return-items', async (req, res, next) => {
+  try {
+    const returns = await SaleReturn.findAll({ where: { companyId: req.user.companyId, branchId: req.branchId }, attributes: ['lines'], raw: true });
+    const items = new Map();
+    for (const record of returns) for (const line of parse(record.lines) || []) {
+      if (typeof line.name !== 'string' || !line.name) continue;
+      const item = { name: line.name, sku: typeof line.sku === 'string' && line.sku ? line.sku : null };
+      items.set(JSON.stringify([item.name, item.sku]), item);
+    }
+    res.json({ items: [...items.values()].sort((a, b) => a.name.localeCompare(b.name) || (a.sku || '').localeCompare(b.sku || '')) });
+  } catch (error) { next(error); }
+});
+router.get('/returns', async (req, res, next) => {
+  try {
+    const paging = pagination({ page: req.query.page ?? '1' });
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 160) : '';
+    const reason = typeof req.query.reason === 'string' ? req.query.reason.trim().slice(0, 160) : '';
+    const where = { companyId: req.user.companyId, branchId: req.branchId, ...(search ? { [Op.or]: [{ saleId: { [Op.like]: `%${search}%` } }, { customerName: { [Op.like]: `%${search}%` } }, sqlWhere(cast(col('lines'), 'CHAR'), { [Op.like]: `%${search}%` })] } : {}) };
+    const dates = {};
+    for (const [name, op] of [['start', Op.gte], ['end', Op.lt]]) {
+      if (req.query[name] === undefined) continue;
+      const value = req.query[name], date = new Date(value);
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString() !== value) throw bad('Enter a valid date range.');
+      dates[op] = date;
+    }
+    if (dates[Op.gte] && dates[Op.lt] && dates[Op.gte] >= dates[Op.lt]) throw bad('Enter a valid date range.');
+    if (Object.getOwnPropertySymbols(dates).length) where.createdAt = dates;
+    if (reason) where[Op.and] = [sqlWhere(fn('JSON_SEARCH', col('lines'), 'one', `%${reason.replace(/[\\%_]/g, '\\$&')}%`, null, '$[*].reason'), { [Op.ne]: null })];
+    if (req.query.itemName !== undefined) {
+      const name = req.query.itemName, sku = req.query.itemSku;
+      if (typeof name !== 'string' || !name || name.length > 160 || (sku !== undefined && (typeof sku !== 'string' || !sku || sku.length > 64))) throw bad('Select a valid item.');
+      const candidate = sku ? fn('JSON_OBJECT', 'name', name, 'sku', sku) : fn('JSON_OBJECT', 'name', name, 'sku', null);
+      where[Op.and] = [...(where[Op.and] || []), sqlWhere(fn('JSON_CONTAINS', col('lines'), candidate), 1)];
+    } else if (req.query.itemSku !== undefined) throw bad('Select a valid item.');
+    const result = await SaleReturn.findAndCountAll({ where, order: [['createdAt', 'DESC'], ['id', 'DESC']], limit: paging.limit, offset: paging.offset });
+    res.json({ returns: result.rows.map(record => ({ ...record.toJSON(), lines: parse(record.lines) })), total: result.count, page: paging.page, pageSize: paging.pageSize });
+  } catch (error) { if (error.status === 400) return res.status(400).json({ message: error.message }); next(error); }
+});
+router.get('/:id/returns', async (req, res, next) => {
+  try {
+    const sale = await Sale.findOne({ where: { id: req.params.id, companyId: req.user.companyId, branchId: req.branchId } });
+    if (!sale) return res.status(404).json({ message: 'Sale not found in this branch.' });
+    const returns = await SaleReturn.findAll({ where: { saleId: sale.id, companyId: req.user.companyId, branchId: req.branchId }, order: [['createdAt', 'ASC']] });
+    res.json({ returns: returns.map(record => ({ ...record.toJSON(), lines: parse(record.lines) })) });
+  } catch (error) { next(error); }
+});
+router.post('/:id/returns', async (req, res, next) => {
+  try {
+    const { requestId, lines: requested } = req.body;
+    if (typeof requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) throw bad('Invalid return request.');
+    const result = await Sale.sequelize.transaction(async transaction => {
+      await lockStockBranch(req, transaction);
+      const sale = await Sale.findOne({ where: { id: req.params.id, companyId: req.user.companyId, branchId: req.branchId }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!sale) throw bad('Sale not found in this branch.');
+      const existing = await SaleReturn.findOne({ where: { requestId, saleId: sale.id, companyId: req.user.companyId, branchId: req.branchId, createdBy: req.user.id }, transaction });
+      if (existing) return existing;
+      const previous = await SaleReturn.findAll({ where: { saleId: sale.id, companyId: req.user.companyId, branchId: req.branchId }, transaction });
+      const returned = prepareReturn(sale, previous, requested);
+      const saleLines = parse(sale.lines), movements = [];
+      for (const line of returned.filter(value => value.restock)) {
+        const original = saleLines[line.lineIndex];
+        const matches = await StockMovement.findAll({ where: { companyId: req.user.companyId, branchId: req.branchId, referenceId: sale.id, kind: 'sale', ...(original.stockId ? { stockId: original.stockId } : { itemName: original.name, sku: original.sku || null }) }, transaction });
+        if (matches.length !== 1) throw bad(`Cannot identify the original stock batch for ${line.name}. Record the return without restocking or contact an administrator.`);
+        const source = await Stock.findOne({ where: { id: matches[0].stockId, branchId: req.branchId }, transaction, lock: transaction.LOCK.UPDATE });
+        if (!source) throw bad(`The original stock batch for ${line.name} is unavailable.`);
+        const movement = matches[0];
+        const stock = await receiveStock({ branchId: req.branchId, itemId: source.itemId, name: line.name, sku: line.sku, quantity: line.quantity, costPrice: movement.unitCost, costCurrency: movement.costCurrency, sellingPrice: movement.unitSellingPrice }, transaction);
+        movements.push({ stock, line });
+      }
+      const refundCents = returned.reduce((sum, line) => sum + line.refundCents, 0);
+      const record = await SaleReturn.create({ requestId, saleId: sale.id, companyId: req.user.companyId, branchId: req.branchId, createdBy: req.user.id, customerName: sale.customerName, refundCents, lines: returned }, { transaction });
+      for (const { stock, line } of movements) await recordMovement({ stock, req, kind: 'sale_return', change: line.quantity, balanceAfter: stock.quantity, referenceId: record.id, referenceLabel: `Sale ${sale.id.slice(0, 8)}`, transaction });
+      return record;
+    });
+    res.status(201).json({ success: true, return: result });
+  } catch (error) { if (error.status === 400) return res.status(400).json({ message: error.message }); if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ message: 'This return request was already recorded. Refresh and check returns.' }); next(error); }
 });
 router.post('/', async (req, res, next) => {
   try {
@@ -72,7 +153,7 @@ router.post('/', async (req, res, next) => {
           name = typeof line.name === 'string' ? line.name.trim() : ''; sku = null; unitPrice = cents(line.unitPrice);
           if (!name || name.length > 160) throw bad('Enter a valid custom item name.');
         } else throw bad('Invalid sale item.');
-        lines.push({ name, sku, quantity, unitPrice: unitPrice / 100, unitCostCents, type: line.type });
+        lines.push({ name, sku, quantity, unitPrice: unitPrice / 100, unitCostCents, type: line.type, ...(line.type === 'stock' ? { stockId: line.stockId } : {}) });
       }
       const subtotal = lines.reduce((sum, line) => sum + cents(line.unitPrice) * line.quantity, 0);
       if (!Number.isSafeInteger(subtotal) || subtotal > 999999999999) throw bad('Sale total is too large.');

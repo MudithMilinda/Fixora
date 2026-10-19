@@ -16,6 +16,7 @@ test('report queries sales, receipts and inventory within active branch', async 
   const Branch = require('../models/Branch'); const UserBranch = require('../models/UserBranch'); const Sale = require('../models/Sale'); const PurchaseOrder = require('../models/PurchaseOrder'); const Stock = require('../models/Stock');
   t.mock.method(Branch, 'findOne', async ({ where }) => { assert.equal(where.companyId, 'c'); return {}; });
   t.mock.method(UserBranch, 'findOne', async () => ({}));
+  t.mock.method(require('../models/SaleReturn'), 'findAll', async ({ where }) => { assert.equal(where.branchId, 'b'); return []; });
   t.mock.method(Sale, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'b'); assert.equal(where.companyId, 'c'); return []; });
   t.mock.method(PurchaseOrder, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'b'); assert.equal(where.status, 'Received'); return []; });
   t.mock.method(PurchaseOrder, 'count', async ({ where }) => { assert.equal(where.branchId, 'b'); return 0; });
@@ -102,9 +103,50 @@ test('receipt date update only fills received, undated orders within the branch'
 test('report details match summary totals, discounts, missing costs and current branch', async t => {
   const router = require('../routes/reports'); const handler = router.stack.find(layer => layer.route?.path === '/profit').route.stack[0].handle;
   const Sale = require('../models/Sale'); const Order = require('../models/PurchaseOrder'); const Stock = require('../models/Stock');
+  t.mock.method(require('../models/SaleReturn'), 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return []; });
   t.mock.method(Sale, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return [{ id: 'sale', createdAt: new Date(), customerName: 'Customer', subtotalCents: 3000, discountCents: 500, totalCents: 2500, lines: JSON.stringify([{ name: 'Part', quantity: 2, unitPrice: 15, unitCostCents: 700 }]) }, { id: 'sale-unknown', totalCents: 1000, subtotalCents: 1000, discountCents: 0, lines: [{ name: 'Service', quantity: 1 }] }]; });
   t.mock.method(Order, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return where.receivedAt === null ? [] : [{ id: 'order', orderNumber: 'PO-1', currency: 'LKR', totalCents: 2000, items: [{ itemName: 'Part', quantity: 2, unitPriceCents: 1000 }] }]; });
   t.mock.method(Stock, 'findAll', async ({ where }) => { assert.equal(where.branchId, 'branch-a'); return [{ id: 'stock', name: 'Part', quantity: 2, costPrice: '7.00', costCurrency: 'LKR' }]; });
   const res = reply(); await handler({ user: { id: 'u', companyId: 'company-a', role: 'admin' }, branchId: 'branch-a', query: { start: '2026-01-01T00:00:00.000Z', end: '2026-02-01T00:00:00.000Z' } }, res, e => { throw e });
   assert.equal(res.body.report.revenueCents, 3500); assert.equal(res.body.report.knownCostCents, 1400); assert.equal(res.body.details.sales[0].grossProfitCents, 1100); assert.equal(res.body.details.sales[1].grossProfitCents, null); assert.equal(res.body.details.orders[0].items[0].quantity, 2); assert.equal(res.body.details.stocks[0].costPrice, 7);
+});
+test('purchase item dropdown lists distinct items from received orders in the current branch', async t => {
+  const Order = require('../models/PurchaseOrder');
+  t.mock.method(Order, 'findAll', async ({ where }) => {
+    assert.deepEqual(where, { companyId: 'company', branchId: 'branch', status: 'Received' });
+    return [{ items: [{ itemName: 'Screen', sku: 'SCR' }, { itemName: 'Cable' }] }, { items: JSON.stringify([{ itemName: 'Screen', sku: 'SCR' }]) }];
+  });
+  const res = reply(); await route('/supplier-purchase-items')[0].handle({ user: { companyId: 'company' }, branchId: 'branch' }, res, e => { throw e });
+  assert.deepEqual(res.body.items, [{ field: 'itemName', value: 'Cable', name: 'Cable', sku: '' }, { field: 'sku', value: 'SCR', name: 'Screen', sku: 'SCR' }]);
+});
+test('purchase item selection returns only the selected SKU lines', async t => {
+  const Order = require('../models/PurchaseOrder'); const { Op } = require('sequelize');
+  t.mock.method(Order, 'findAndCountAll', async options => {
+    assert.equal(options.where.companyId, 'company'); assert.equal(options.where.branchId, 'branch'); assert.equal(options.where[Op.and].length, 1);
+    return { count: 1, rows: [{ id: 'o', items: [{ itemName: 'Screen', sku: 'SCR' }, { itemName: 'Other screen', sku: 'SCR-2' }] }] };
+  });
+  const res = reply(); await route('/supplier-purchases')[0].handle({ user: { companyId: 'company' }, branchId: 'branch', query: { itemField: 'sku', itemValue: 'SCR' } }, res, e => { throw e });
+  assert.deepEqual(res.body.orders[0].items, [{ itemName: 'Screen', sku: 'SCR' }]);
+});
+test('purchase item identity keeps price history together when its SKU changes', async t => {
+  const Order = require('../models/PurchaseOrder');
+  t.mock.method(Order, 'findAll', async () => [{ items: [{ itemId: 'id-1', itemName: 'Screen', sku: 'OLD' }, { itemId: 'id-1', itemName: 'Screen', sku: 'NEW' }] }]);
+  let res = reply(); await route('/supplier-purchase-items')[0].handle({ user: { companyId: 'company' }, branchId: 'branch' }, res, e => { throw e });
+  assert.equal(res.body.items.length, 1); assert.equal(res.body.items[0].field, 'itemId');
+  t.mock.method(Order, 'findAndCountAll', async () => ({ count: 1, rows: [{ id: 'o', items: [{ itemId: 'id-1', sku: 'OLD' }, { itemId: 'id-1', sku: 'NEW' }, { itemId: 'id-2', sku: 'OLD' }] }] }));
+  res = reply(); await route('/supplier-purchases')[0].handle({ user: { companyId: 'company' }, branchId: 'branch', query: { itemField: 'itemId', itemValue: 'id-1' } }, res, e => { throw e });
+  assert.equal(res.body.orders[0].items.length, 2);
+});
+test('adjustment item dropdown lists distinct items scoped to the active branch', async t => {
+  const Movement = require('../models/StockMovement');
+  t.mock.method(Movement, 'findAll', async ({ where, group }) => { assert.deepEqual(where, { companyId: 'company', branchId: 'branch', kind: 'adjustment' }); assert.deepEqual(group, ['itemName', 'sku']); return [{ itemName: 'Cable', sku: null }, { itemName: 'Cable', sku: '' }, { itemName: 'Screen', sku: 'SCR' }]; });
+  const res = reply(); await route('/stock-adjustment-items')[0].handle({ user: { companyId: 'company' }, branchId: 'branch' }, res, e => { throw e });
+  assert.deepEqual(res.body.items, [{ itemName: 'Cable', sku: null }, { itemName: 'Screen', sku: 'SCR' }]);
+});
+test('selected adjustment item filters rows and summary together before pagination', async t => {
+  const Movement = require('../models/StockMovement'); let filter;
+  t.mock.method(Movement, 'findAndCountAll', async options => { filter = options.where; assert.equal(filter.itemName, 'Screen'); assert.equal(filter.sku, 'SCR'); assert.equal(filter.branchId, 'branch'); assert.equal(filter.adjustmentReason, 'damaged'); assert.equal(options.offset, 10); return { count: 0, rows: [] }; });
+  t.mock.method(Movement, 'findOne', async ({ where }) => { assert.equal(where, filter); return { damagedUnits: 0, lostUnits: 0, lossCostCents: 0, excludedLosses: 0 }; });
+  const res = reply(); await route('/stock-adjustments')[0].handle({ user: { companyId: 'company' }, branchId: 'branch', query: { page: '2', itemName: 'Screen', itemSku: 'SCR', reason: 'damaged' } }, res, e => { throw e });
+  assert.equal(res.body.total, 0);
 });

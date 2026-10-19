@@ -1,4 +1,4 @@
-function calculateReport(sales, orders, stocks) {
+function calculateReport(sales, orders, stocks, returns = []) {
   let revenueCents = 0, knownCostCents = 0, unknownCostLines = 0;
   for (const sale of sales) {
     revenueCents += Number(sale.totalCents);
@@ -8,9 +8,20 @@ function calculateReport(sales, orders, stocks) {
       else knownCostCents += line.unitCostCents * line.quantity;
     }
   }
+  let refundCents = 0, returnCostCents = 0;
+  for (const record of returns) {
+    refundCents += Number(record.refundCents);
+    const lines = typeof record.lines === 'string' ? JSON.parse(record.lines) : record.lines;
+    for (const line of lines) if (line.restock) {
+      if (!Number.isSafeInteger(line.unitCostCents) || line.unitCostCents < 0) unknownCostLines++;
+      else returnCostCents += line.unitCostCents * line.quantity;
+    }
+  }
+  revenueCents -= refundCents;
+  knownCostCents -= returnCostCents;
   const stockValueCents = stocks.filter(stock => stock.costCurrency === 'LKR').reduce((sum, stock) => sum + Math.round(Number(stock.costPrice) * 100) * Number(stock.quantity), 0);
   const unknownStockBatches = stocks.filter(stock => stock.costCurrency !== 'LKR' && Number(stock.quantity) > 0).length;
   const purchaseCents = orders.filter(order => order.currency === 'LKR').reduce((sum, order) => sum + Number(order.totalCents), 0);
-  return { revenueCents, knownCostCents, grossProfitCents: unknownCostLines ? null : revenueCents - knownCostCents, unknownCostLines, saleCount: sales.length, purchaseCents, purchaseCount: orders.filter(order => order.currency === 'LKR').length, excludedCurrencyOrders: orders.filter(order => order.currency !== 'LKR').length, stockValueCents, unknownStockBatches };
+  return { refundCents, returnCostCents, returnCount: returns.length, revenueCents, knownCostCents, grossProfitCents: unknownCostLines ? null : revenueCents - knownCostCents, unknownCostLines, saleCount: sales.length, purchaseCents, purchaseCount: orders.filter(order => order.currency === 'LKR').length, excludedCurrencyOrders: orders.filter(order => order.currency !== 'LKR').length, stockValueCents, unknownStockBatches };
 }
 module.exports = { calculateReport };

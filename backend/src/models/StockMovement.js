@@ -7,7 +7,7 @@ module.exports = sequelize.define('StockMovement', {
   stockId: { type: DataTypes.UUID, allowNull: false, field: 'stock_id' },
   itemName: { type: DataTypes.STRING(160), allowNull: false, field: 'item_name' },
   sku: { type: DataTypes.STRING(64), allowNull: true },
-  kind: { type: DataTypes.ENUM('manual_add', 'purchase', 'sale', 'repair', 'delete', 'adjustment'), allowNull: false },
+  kind: { type: DataTypes.ENUM('manual_add', 'purchase', 'sale', 'repair', 'delete', 'adjustment', 'sale_return'), allowNull: false },
   quantityChange: { type: DataTypes.INTEGER, allowNull: false, field: 'quantity_change' },
   balanceAfter: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, field: 'balance_after' },
   unitCost: { type: DataTypes.DECIMAL(12, 2), allowNull: false, field: 'unit_cost' },

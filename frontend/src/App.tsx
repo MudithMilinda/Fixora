@@ -19,13 +19,14 @@ import QuotationsPage from './Pages/QuotationsPage'
 import CompanySettingsPage from './Pages/CompanySettingsPage'
 import PurchaseOrdersPage from './Pages/PurchaseOrdersPage'
 import PaymentsPage from './Pages/PaymentsPage'
+import SalesReturnsPage from './Pages/SalesReturnsPage'
 import PaymentHistoryPage from './Pages/PaymentHistoryPage'
 import TechniciansPage from './Pages/TechniciansPage'
 import type { AuthUser } from './types/auth'
 import api from './api/axios'
 import { CompanyBrandingProvider } from './CompanyBrandingContext'
 
-type AppPage = 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases' | 'stockAdjustmentsReport'
+type AppPage = 'salesReturns' | 'dashboard' | 'repairs' | 'history' | 'inventory' | 'items' | 'purchaseRequests' | 'quotations' | 'payments' | 'paymentHistory' | 'purchaseOrders' | 'suppliers' | 'technicians' | 'branches' | 'profile' | 'companySettings' | 'usersRoles' | 'profitReport' | 'stockMovements' | 'stockValuation' | 'supplierPurchases' | 'stockAdjustmentsReport'
 
 function pageFromPath(pathname: string): AppPage {
   if (pathname === '/stock-adjustments-report') return 'stockAdjustmentsReport'
@@ -36,6 +37,7 @@ function pageFromPath(pathname: string): AppPage {
   if (pathname === '/users-roles') return 'usersRoles'
   if (pathname === '/quotations') return 'quotations'
   if (pathname === '/payments') return 'payments'
+  if (pathname === '/sales-returns') return 'salesReturns'
   if (pathname === '/payment-history') return 'paymentHistory'
   if (pathname === '/technicians') return 'technicians'
   if (pathname === '/purchase-orders') return 'purchaseOrders'
@@ -61,6 +63,7 @@ function pathForPage(page: AppPage) {
   if (page === 'usersRoles') return '/users-roles'
   if (page === 'quotations') return '/quotations'
   if (page === 'payments') return '/payments'
+  if (page === 'salesReturns') return '/sales-returns'
   if (page === 'paymentHistory') return '/payment-history'
   if (page === 'technicians') return '/technicians'
   if (page === 'purchaseOrders') return '/purchase-orders'
@@ -124,6 +127,7 @@ function App() {
     if (currentPage === 'usersRoles') return <UsersRolesPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'quotations') return <QuotationsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'payments') return <PaymentsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
+    if (currentPage === 'salesReturns') return <SalesReturnsPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'paymentHistory') return <PaymentHistoryPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'technicians') return <TechniciansPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     if (currentPage === 'purchaseOrders') return <PurchaseOrdersPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />

@@ -1,4 +1,6 @@
+import { saleReference } from "../data/saleReference";
 import { useEffect, useState } from "react";
+import SaleReturnModal from "../Components/SaleReturnModal";
 import Sidebar from "../Components/Sidebar";
 import Pagination from "../Components/Pagination";
 import SaleInvoiceModal from "../Components/SaleInvoiceModal";
@@ -24,6 +26,8 @@ export default function PaymentHistoryPage(props: {
   const [showLegacy, setShowLegacy] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1), [total, setTotal] = useState(0);
+  const [returningSale, setReturningSale] = useState<CompletedSale | null>(null);
+  const [returnNotice, setReturnNotice] = useState("");
   const [viewingSale, setViewingSale] = useState<CompletedSale | null>(null);
   useEffect(() => { let cancelled = false; setLoading(true); setError(''); const timer = window.setTimeout(() => { api.get('/sales', {params:{page,search:search.trim()}}).then(({data}) => { if(cancelled)return; const last=Math.max(1,Math.ceil(data.total/data.pageSize)); if(page>last){setPage(last);return} setSales(data.sales); setTotal(data.total) }).catch(error => {if(!cancelled)setError(getApiError(error,'Unable to load payment history.'))}).finally(()=>{if(!cancelled)setLoading(false)}) }, search ? 250 : 0); return () => {cancelled=true;window.clearTimeout(timer)} }, [page, search]);
   const filtered = sales;
@@ -53,6 +57,7 @@ export default function PaymentHistoryPage(props: {
         </header>
 
         {legacySales.length > 0 && <section className="mt-5 rounded-xl bg-[#fff7e8] p-3 text-sm text-[#795b21]"><p>This browser has {legacySales.length} older locally saved sales. They have not been assigned to a branch or moved to the database.</p><button type="button" className="mt-2 font-semibold underline" onClick={() => setShowLegacy(value => !value)}>{showLegacy ? 'Hide' : 'View'} older sales</button>{showLegacy && <ul className="mt-2 space-y-2">{legacySales.map(sale => <li key={sale.id} className="flex items-center justify-between gap-3"><span>{sale.id} · {sale.customerName || 'Walk-in customer'} · {money(sale.total)}</span><button type="button" className="font-semibold underline" onClick={() => setViewingSale(sale)}>View invoice</button></li>)}</ul>}</section>}
+        {returnNotice && <p role="status" className="mt-5 rounded-xl bg-green-50 p-3 text-sm text-green-700">{returnNotice} <a className="font-semibold underline" href="/sales-returns">View sales returns</a></p>}
         {error && <p role="alert" className="mt-5 text-sm text-red-700">{error}</p>}
         <section className="mt-6 rounded-[18px] border border-[#eceaf2] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -63,7 +68,7 @@ export default function PaymentHistoryPage(props: {
             <label className="relative block w-full max-w-[340px]">
               <span className="sr-only">Search payment history</span>
               <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#89909d]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
-              <input value={search} onChange={(event) => { setPage(1); setSearch(event.target.value) }} className="h-10 w-full rounded-[10px] border border-[#e1e3e8] bg-white pl-9 pr-3 text-sm outline-none placeholder:text-[#9ca0aa] focus:border-[#171719]" placeholder="Search customer or sale…" />
+              <input value={search} onChange={(event) => { setPage(1); setSearch(event.target.value) }} className="h-10 w-full rounded-[10px] border border-[#e1e3e8] bg-white pl-9 pr-3 text-sm outline-none placeholder:text-[#9ca0aa] focus:border-[#171719]" placeholder="Search customer, item or sale reference…" />
             </label>
           </div>
 
@@ -75,13 +80,13 @@ export default function PaymentHistoryPage(props: {
               <tbody>
                 {filtered.length ? filtered.map((sale) => (
                   <tr className="border-t border-[#f0f1f4]" key={sale.id}>
-                    <td className="py-4"><strong className="block font-semibold">{sale.id}</strong>{sale.repair && <small className="mt-0.5 block text-xs text-[#69717f]">Repair: {sale.repair.jobNumber}</small>}</td>
+                    <td className="py-4"><strong className="block font-semibold">{saleReference(sale)}</strong>{sale.repair && <small className="mt-0.5 block text-xs text-[#69717f]">Repair: {sale.repair.jobNumber}</small>}</td>
                     <td className="py-4"><strong className="block font-semibold">{sale.customerName || "Walk-in customer"}</strong><small className="mt-0.5 block text-xs text-[#7a8090]">{sale.customerPhone || "No phone number"}</small></td>
                     <td className="py-4"><strong>{sale.lines.reduce((sum, line) => sum + line.quantity, 0)}</strong><small className="mt-0.5 block max-w-[220px] truncate text-xs text-[#7a8090]">{sale.lines.map((line) => line.name).join(", ")}</small></td>
                     <td className="py-4 text-[#596170]">{sale.payments.map((payment) => payment.method).join(", ")}</td>
                     <td className="py-4 text-[#596170]">{new Date(sale.completedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</td>
                     <td className="whitespace-nowrap py-4 pr-5 text-right font-semibold tabular-nums">{money(sale.total)}</td>
-                    <td className="py-4 text-center"><button type="button" onClick={() => setViewingSale(sale)} aria-label={`View invoice ${sale.id}`} title="View invoice" className="mx-auto grid h-8 w-8 place-items-center rounded-[9px] border border-[#dfe2e7] bg-white text-[#667080] shadow-[0_1px_1px_#10101206] transition hover:border-[#cbd0d8] hover:bg-[#f6f7f8] hover:text-[#262b3a]"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path d="M2.8 12s3.3-5.7 9.2-5.7 9.2 5.7 9.2 5.7-3.3 5.7-9.2 5.7S2.8 12 2.8 12Z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="2.6" /></svg></button></td>
+                    <td className="py-4 text-center"><div className="flex items-center justify-center gap-2"><button type="button" onClick={() => setViewingSale(sale)} aria-label={`View invoice ${sale.id}`} title="View invoice" className="mx-auto grid h-8 w-8 place-items-center rounded-[9px] border border-[#dfe2e7] bg-white text-[#667080] shadow-[0_1px_1px_#10101206] transition hover:border-[#cbd0d8] hover:bg-[#f6f7f8] hover:text-[#262b3a]"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path d="M2.8 12s3.3-5.7 9.2-5.7 9.2 5.7 9.2 5.7-3.3 5.7-9.2 5.7S2.8 12 2.8 12Z" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="12" r="2.6" /></svg></button><button type="button" onClick={() => setReturningSale(sale)} aria-label={`Return items for sale ${sale.id}`} title="Return items" className="grid h-8 w-8 place-items-center rounded-[9px] border border-[#dfe2e7] bg-white text-[#667080] shadow-[0_1px_1px_#10101206] transition hover:border-[#cbd0d8] hover:bg-[#f6f7f8] hover:text-[#262b3a]"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 14 5 10l4-4"/><path d="M5 10h9a5 5 0 0 1 0 10h-3"/></svg></button></div></td>
                   </tr>
                 )) : <tr><td colSpan={7} className="py-14 text-center text-sm text-[#747a89]">{loading ? "Loading sales…" : error ? "Payment history could not be loaded." : sales.length ? "No matching payment records." : "Completed sales will appear here."}</td></tr>}
               </tbody>
@@ -97,6 +102,7 @@ export default function PaymentHistoryPage(props: {
           <Pagination page={page} total={total} disabled={loading} onPageChange={setPage} />
         </section>
       </main>
+      {returningSale && <SaleReturnModal sale={returningSale} onClose={() => setReturningSale(null)} onSaved={() => { setReturningSale(null); setReturnNotice("Return recorded successfully.") }} />}
       {viewingSale && <SaleInvoiceModal sale={viewingSale} closeLabel="Close invoice" onClose={() => setViewingSale(null)} />}
     </div>
   );
