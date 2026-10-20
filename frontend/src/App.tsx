@@ -162,6 +162,9 @@ function App() {
     if (currentPage === 'branches') return <BranchesPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     return <DashboardPage user={user} onGoDashboard={() => navigate('dashboard')} onOpenRepairs={() => navigate('repairs')} onOpenHistory={() => navigate('history')} onOpenProfile={() => navigate('profile')} onSignOut={handleSignOut} />
     }
+    // Each page owns the shared sidebar. Animating a keyed wrapper here made
+    // the entire layout fade in on every navigation, which looked like the
+    // sidebar was blinking. Keep the application shell stable between pages.
     return <CompanyBrandingProvider key={`${user.id}:${user.companyId || ''}`} companyId={user.companyId}>{renderPage()}</CompanyBrandingProvider>
   }
 
