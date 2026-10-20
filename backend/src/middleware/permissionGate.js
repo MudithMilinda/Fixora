@@ -2,7 +2,7 @@ const { effective, superAdmin } = require('../services/permissions');
 // Each route family is mapped to an explicit section and action. Specific
 // workflow routes override the HTTP method where an action is not CRUD.
 function permissionFor(resource, method, path) {
-  let section = ({ repairs:'repairs', 'warranty-claims':'warrantyClaims', items:'items', stocks:'stocks', 'stock-movements':'stockMovements', 'stock-requests':'purchaseRequests', 'purchase-orders':'purchaseOrders', quotations:'quotations', sales:'sales', 'supplier-returns':'supplierReturns', reports:'reports', suppliers:'suppliers', technicians:'technicians', branches:'branches', users:'users', 'company-settings':'companySettings' })[resource];
+  let section = ({ dashboard:'dashboard', repairs:'repairs', 'warranty-claims':'warrantyClaims', items:'items', stocks:'stocks', 'stock-movements':'stockMovements', 'stock-requests':'purchaseRequests', 'purchase-orders':'purchaseOrders', quotations:'quotations', sales:'sales', 'supplier-returns':'supplierReturns', reports:'reports', suppliers:'suppliers', technicians:'technicians', branches:'branches', users:'users', 'company-settings':'companySettings' })[resource];
   if (!section) return null;
   let action = method === 'GET' || method === 'HEAD' ? 'view' : method === 'POST' ? 'create' : method === 'PUT' || method === 'PATCH' ? 'edit' : method === 'DELETE' ? 'delete' : null;
   if (resource === 'repairs' && /^\/history\/?$/.test(path) && (method === 'GET' || method === 'HEAD')) section = 'repairHistory';

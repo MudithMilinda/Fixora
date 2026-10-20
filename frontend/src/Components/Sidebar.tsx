@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AuthUser } from '../types/auth'
 import { useCompanyBranding } from '../CompanyBrandingContext'
+import api from '../api/axios'
 
 function SidebarSection({ title, icon, active, children }: { title: string; icon: ReactNode; active: boolean; children: ReactNode }) {
     const [open, setOpen] = useState(active)
@@ -22,15 +23,43 @@ function Sidebar({ user, activePage, onGoDashboard, onOpenRepairs, onOpenHistory
     const { company } = useCompanyBranding()
     const companyName = company?.name || 'Fixora'
     const companyInitials = companyName.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'F'
+    const [notificationsOpen, setNotificationsOpen] = useState(false)
+    const notificationsRef = useRef<HTMLDivElement>(null)
+    const [notificationCount, setNotificationCount] = useState(0)
+    const [notificationItems, setNotificationItems] = useState<{ title: string; detail: string; href: string }[]>([])
+    useEffect(() => {
+        if (!notificationsOpen) return
+        const closeWhenClickedOutside = (event: MouseEvent) => {
+            if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) setNotificationsOpen(false)
+        }
+        document.addEventListener('mousedown', closeWhenClickedOutside)
+        return () => document.removeEventListener('mousedown', closeWhenClickedOutside)
+    }, [notificationsOpen])
+    useEffect(() => {
+        if (!user.permissions?.includes('dashboard.view')) return
+        let active = true
+        api.get('/dashboard').then(({ data }) => {
+            if (!active) return
+            const items = [
+                ...(data.overdueRepairs ? [{ title: `${data.overdueRepairs} overdue repair${data.overdueRepairs === 1 ? '' : 's'}`, detail: 'Past the promised date', href: '/repair-jobs' }] : []),
+                ...(data.readyToCollect ? [{ title: `${data.readyToCollect} ready to collect`, detail: 'Ready for customer handover', href: '/repair-jobs' }] : []),
+                ...(data.lowStock || []).slice(0, 3).map((item: { name: string; quantity: number; minimum: number }) => ({ title: `Low stock: ${item.name}`, detail: `${item.quantity} available · minimum ${item.minimum}`, href: '/inventory' })),
+            ]
+            setNotificationItems(items); setNotificationCount(items.length)
+        }).catch(() => {})
+        return () => { active = false }
+    }, [user.permissions])
     return (
-        <aside className="flex h-dvh w-[250px] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[#101012] p-5 text-[#f5f5f5] max-[1100px]:h-auto max-[1100px]:w-full max-[1100px]:overflow-visible max-[1100px]:border-b max-[1100px]:border-r-0">
-            <div className="mb-10 flex items-center gap-3 px-1 py-2" style={{ minWidth: 0 }}>
+        <aside className="relative z-40 flex h-dvh w-[250px] shrink-0 flex-col overflow-visible border-r border-white/10 bg-[#101012] p-5 text-[#f5f5f5] max-[1100px]:h-auto max-[1100px]:w-full max-[1100px]:overflow-visible max-[1100px]:border-b max-[1100px]:border-r-0">
+            <div ref={notificationsRef} className="relative mb-10 flex items-center gap-3 px-1 py-2" style={{ minWidth: 0 }}>
                 <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-white text-sm font-bold text-[#171719]" style={{ flexShrink: 0, overflow: 'hidden' }}>
                     {company?.logo
                         ? <img src={company.logo} alt={`${companyName} logo`} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} />
                         : companyInitials}
                 </span>
-                <span className="text-[1.05rem] font-bold tracking-tight" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{companyName}</span>
+                <span className="min-w-0 flex-1 text-[1.05rem] font-bold tracking-tight" style={{ overflowWrap: 'anywhere' }}>{companyName}</span>
+                {user.permissions?.includes('dashboard.view') && <button type="button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(value => !value)} className="relative grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#b5b5ba] transition hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30"><svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>{notificationCount > 0 && <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-[#d95245] px-1 text-[9px] font-bold text-white">{notificationCount > 9 ? '9+' : notificationCount}</span>}</button>}
+                {notificationsOpen && <div className="absolute left-[calc(100%+12px)] top-1 z-30 w-[310px] rounded-xl border border-[#e4e5ea] bg-white p-2 text-[#262b3a] shadow-2xl max-[700px]:left-1 max-[700px]:top-[52px] max-[700px]:w-[calc(100vw-40px)]"><div className="border-b border-[#eceef2] px-2 pb-2 text-xs font-semibold text-[#262b3a]">Notifications</div>{notificationItems.length ? <div className="mt-1 max-h-64 overflow-auto">{notificationItems.map(item => <a key={`${item.title}-${item.detail}`} href={item.href} className="block rounded-lg px-2 py-2.5 hover:bg-[#f5f5f7]"><p className="text-xs font-semibold text-[#262b3a]">{item.title}</p><p className="mt-0.5 text-[11px] text-[#747a89]">{item.detail}</p></a>)}</div> : <p className="px-2 py-4 text-xs text-[#747a89]">You’re all caught up.</p>}</div>}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-[1100px]:overflow-visible">
             {user.permissions?.includes('dashboard.view') && <nav aria-label="Main navigation">
